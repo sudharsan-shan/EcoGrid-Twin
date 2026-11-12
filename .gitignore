@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+venv/
+.env
+
+# Node
+node_modules/
+dist/
+
+# Models / data (optional - uncomment if you don't want to track large files)
+# models/*.keras
+# models/*.pkl
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store

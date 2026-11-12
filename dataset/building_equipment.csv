@@ -1,0 +1,8 @@
+equipment,category,rated_kW,operating_pattern
+Chiller plant (HVAC),HVAC,75.0,scales with outdoor temp and occupancy
+AHU / fans,HVAC,12.0,with HVAC
+LED lighting,Lighting,18.0,occupancy and daylight
+Computers and office equipment,Equipment,35.0,occupancy
+Server room / UPS,Base,22.0,24x7
+Lifts and common area,Base,12.0,24x7
+"Water pumps, security, canteen cold storage",Base,18.0,24x7

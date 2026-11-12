@@ -1,0 +1,2 @@
+building_name,city,latitude,longitude,building_type,floors,floor_area_m2,max_occupants,year_built,working_hours,hvac_type,hvac_setpoint_C,pv_kWp,battery_kWh,battery_kW,tariff,data_start,data_end,resolution_min,data_type
+EcoGrid Commercial Block,Chennai,13.08,80.27,Commercial office,3,6000,300,2018,07:00-21:00 (Mon-Sat),Central chiller + AHU,24,120,250,60,TNPDCL LT-III-B ToU,2025-01-01 00:00:00,2026-10-19 23:45:00,15,Synthetic (modelled from real NASA POWER climate)

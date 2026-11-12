@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Proposed Setup - EcoGrid-Twin</title>
+<style>
+  body {
+    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
+    background-color: #ffffff;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    margin: 0;
+    padding: 30px;
+  }
+  .table-container {
+    width: 100%;
+    max-width: 950px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+    font-size: 15px;
+    line-height: 1.5;
+  }
+  thead th {
+    background-color: #175d75;
+    color: #ffffff;
+    font-weight: 700;
+    font-size: 16px;
+    letter-spacing: 0.5px;
+    padding: 12px 18px;
+    border-right: 1.5px solid rgba(255,255,255,0.25);
+  }
+  thead th:last-child {
+    border-right: none;
+  }
+  tbody tr {
+    border-bottom: 1px solid #d1dbe3;
+  }
+  tbody tr:nth-child(even) {
+    background-color: #eaf1f5;
+  }
+  tbody tr:nth-child(odd) {
+    background-color: #f7fafc;
+  }
+  tbody tr:hover {
+    background-color: #e1ebf2;
+  }
+  td {
+    padding: 12px 18px;
+    vertical-align: middle;
+  }
+  td.component-cell {
+    font-weight: 600;
+    color: #1a202c;
+    width: 28%;
+    border-right: 1.5px solid #d1dbe3;
+  }
+  td.setup-cell {
+    color: #2d3748;
+    width: 72%;
+  }
+</style>
+</head>
+<body>
+
+<div class="table-container">
+  <table>
+    <thead>
+      <tr>
+        <th style="width: 28%;">COMPONENT</th>
+        <th style="width: 72%;">PROPOSED SETUP</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="component-cell">Programming language</td>
+        <td class="setup-cell">Python 3.13 (backend simulation, AI models, API) & TypeScript / React (digital twin frontend)</td>
+      </tr>
+      <tr>
+        <td class="component-cell">Development environment</td>
+        <td class="setup-cell">VS Code, FastAPI backend, React + TypeScript + Three.js frontend on a Vite dev server</td>
+      </tr>
+      <tr>
+        <td class="component-cell">Dataset</td>
+        <td class="setup-cell">Synthetic campus microgrid dataset for 6 facilities (case study: IFET College of Engineering / Chennai Campus)</td>
+      </tr>
+      <tr>
+        <td class="component-cell">Dataset size</td>
+        <td class="setup-cell">8,760 hourly intervals (35,040 × 15-min dispatch intervals) across 6 facilities = 52,560 facility-hour records</td>
+      </tr>
+      <tr>
+        <td class="component-cell">Input data</td>
+        <td class="setup-cell">Simulated facility occupancy and electrical load, Open-Meteo & ERA5 hourly weather, 120 kWp rooftop solar PV, 250 kWh / 60 kW BESS, TNPDCL ToU tariffs</td>
+      </tr>
+      <tr>
+        <td class="component-cell">Meta-Twin / AI model</td>
+        <td class="setup-cell">Physics-Informed Neural Network (PINN) for battery electro-thermal validation + Bi-LSTM probabilistic forecaster (P10/P50/P90) + Tariff Dispatch Optimizer</td>
+      </tr>
+      <tr>
+        <td class="component-cell">Train / test split</td>
+        <td class="setup-cell">First 351 days train, final 14 days test (chronological), seed 42</td>
+      </tr>
+      <tr>
+        <td class="component-cell">Evaluation metrics</td>
+        <td class="setup-cell">MAE, RMSE, MAPE (Solar: 6.78%, Load: 3.71%), R² (>0.95), Physics Residual Confidence (99.7%)</td>
+      </tr>
+      <tr>
+        <td class="component-cell">Scenarios simulated</td>
+        <td class="setup-cell">Baseline, heatwave (+3.5 °C HVAC surge), cloud transient dip, examination/event peak surge, Meta-Twin-guided optimal dispatch</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,5 @@
+zone_id,zone_name,area_m2,max_occupants,type
+Z1,Floor 1 - Offices,2000,120,office
+Z2,Floor 2 - Offices,2000,110,office
+Z3,Floor 3 - Conference/Labs,1500,70,lab/meeting
+ZC,"Common - Lobby, server room, utilities",500,0,common

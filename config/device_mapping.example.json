@@ -1,0 +1,86 @@
+{
+  "description": "EcoGrid-Twin Modbus & MQTT Device Register Mapping Presets",
+  "active_profile": "schneider_em6400ng",
+  "profiles": {
+    "schneider_em6400ng": {
+      "name": "Schneider Electric Conzerv EM6400NG / EM6400",
+      "device_type": "smart_meter",
+      "slave_id": 1,
+      "byte_order": "BIG_ENDIAN",
+      "word_order": "BIG_ENDIAN",
+      "function_code": 3,
+      "registers": {
+        "voltage_v": { "address": 3908, "type": "float32", "scale": 1.0, "unit": "V" },
+        "current_a": { "address": 3912, "type": "float32", "scale": 1.0, "unit": "A" },
+        "active_power_kw": { "address": 3902, "type": "float32", "scale": 0.001, "unit": "kW" },
+        "frequency_hz": { "address": 3914, "type": "float32", "scale": 1.0, "unit": "Hz" },
+        "power_factor": { "address": 3906, "type": "float32", "scale": 1.0, "unit": "PF" },
+        "energy_import_kwh": { "address": 3926, "type": "float32", "scale": 1.0, "unit": "kWh" },
+        "energy_export_kwh": { "address": 3930, "type": "float32", "scale": 1.0, "unit": "kWh" }
+      }
+    },
+    "selec_mfm383a": {
+      "name": "Selec MFM383A / MFM384 Multifunction Meter",
+      "device_type": "smart_meter",
+      "slave_id": 1,
+      "byte_order": "BIG_ENDIAN",
+      "word_order": "BIG_ENDIAN",
+      "function_code": 3,
+      "registers": {
+        "voltage_v": { "address": 0, "type": "float32", "scale": 1.0, "unit": "V" },
+        "current_a": { "address": 6, "type": "float32", "scale": 1.0, "unit": "A" },
+        "active_power_kw": { "address": 12, "type": "float32", "scale": 0.001, "unit": "kW" },
+        "frequency_hz": { "address": 56, "type": "float32", "scale": 1.0, "unit": "Hz" },
+        "power_factor": { "address": 18, "type": "float32", "scale": 1.0, "unit": "PF" },
+        "energy_import_kwh": { "address": 64, "type": "float32", "scale": 1.0, "unit": "kWh" }
+      }
+    },
+    "growatt_inverter": {
+      "name": "Growatt Solar Inverter (Modbus RTU)",
+      "device_type": "solar_inverter",
+      "slave_id": 1,
+      "byte_order": "BIG_ENDIAN",
+      "word_order": "BIG_ENDIAN",
+      "function_code": 4,
+      "registers": {
+        "solar_power_kw": { "address": 1, "type": "uint32", "scale": 0.0001, "unit": "kW" },
+        "solar_energy_today_kwh": { "address": 53, "type": "uint32", "scale": 0.1, "unit": "kWh" },
+        "inverter_temperature_c": { "address": 93, "type": "int16", "scale": 0.1, "unit": "°C" },
+        "grid_voltage_v": { "address": 38, "type": "uint16", "scale": 0.1, "unit": "V" },
+        "grid_frequency_hz": { "address": 37, "type": "uint16", "scale": 0.01, "unit": "Hz" }
+      }
+    },
+    "mqtt_gateway": {
+      "name": "Generic MQTT Energy Gateway (Shelly 3EM / Custom IoT)",
+      "device_type": "mqtt",
+      "topics": {
+        "meter": "ecogrid/meter/telemetry",
+        "solar": "ecogrid/solar/inverter",
+        "battery": "ecogrid/battery/bms"
+      },
+      "json_field_mapping": {
+        "meter": {
+          "grid_import_kw": "power_import_kw",
+          "grid_export_kw": "power_export_kw",
+          "facility_load_kw": "total_load_kw",
+          "voltage_v": "voltage",
+          "current_a": "current",
+          "frequency_hz": "frequency",
+          "power_factor": "power_factor",
+          "energy_import_kwh": "total_energy_kwh"
+        },
+        "solar": {
+          "solar_kw": "pv_power_kw",
+          "solar_energy_kwh": "total_yield_kwh",
+          "inverter_temp_c": "temperature_c"
+        },
+        "battery": {
+          "soc": "state_of_charge_pct",
+          "battery_kw": "power_kw",
+          "battery_temp": "temperature_c",
+          "battery_health": "health_pct"
+        }
+      }
+    }
+  }
+}

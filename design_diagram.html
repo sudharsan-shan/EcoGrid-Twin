@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Design of the Proposed Work</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background: #fff;
+    padding: 30px 40px;
+    color: #111;
+  }
+  h1 {
+    text-align: center;
+    font-size: 28px;
+    font-weight: 900;
+    letter-spacing: 1px;
+    margin-bottom: 24px;
+    text-transform: uppercase;
+  }
+
+  .layer {
+    border: 2.5px solid #111;
+    border-radius: 6px;
+    padding: 14px 16px 12px;
+    margin-bottom: 6px;
+    position: relative;
+    background: #f9f9f9;
+  }
+  .layer-title {
+    font-size: 15px;
+    font-weight: 800;
+    text-align: center;
+    margin-bottom: 10px;
+    background: #111;
+    color: #fff;
+    padding: 5px 16px;
+    border-radius: 4px;
+    display: inline-block;
+    position: relative;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+  .layer-row {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .box {
+    border: 2px solid #333;
+    border-radius: 5px;
+    padding: 10px 14px;
+    background: #fff;
+    flex: 1;
+    min-width: 180px;
+  }
+  .box-title {
+    font-size: 13px;
+    font-weight: 800;
+    text-align: center;
+    margin-bottom: 6px;
+    border-bottom: 1.5px solid #ccc;
+    padding-bottom: 4px;
+  }
+  .box ul {
+    list-style: none;
+    padding: 0;
+  }
+  .box ul li {
+    font-size: 11.5px;
+    padding: 1.5px 0;
+    padding-left: 10px;
+    position: relative;
+    line-height: 1.4;
+  }
+  .box ul li::before {
+    content: "•";
+    position: absolute;
+    left: 0;
+    color: #555;
+  }
+
+  .arrow-down {
+    text-align: center;
+    font-size: 13px;
+    font-weight: 700;
+    color: #333;
+    padding: 4px 0;
+    position: relative;
+  }
+  .arrow-down::before {
+    content: "▼";
+    display: block;
+    font-size: 16px;
+    color: #111;
+  }
+
+  .arrow-right {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+    color: #333;
+    padding: 0 4px;
+    min-width: 60px;
+    flex-shrink: 0;
+    flex-grow: 0;
+  }
+  .arrow-right span {
+    writing-mode: horizontal-tb;
+    white-space: nowrap;
+  }
+
+  .columns {
+    display: flex;
+    gap: 0;
+    align-items: stretch;
+  }
+  .col-left, .col-right {
+    flex: 1;
+  }
+
+  .grid-2x2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .grid-4 {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+    gap: 8px;
+  }
+  .grid-3 {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+  }
+
+  .small-box {
+    border: 1.5px solid #555;
+    border-radius: 4px;
+    padding: 8px 10px;
+    background: #f0f0f0;
+    text-align: center;
+  }
+  .small-box .sb-title {
+    font-size: 11.5px;
+    font-weight: 800;
+    margin-bottom: 3px;
+  }
+  .small-box .sb-desc {
+    font-size: 10px;
+    color: #444;
+    line-height: 1.3;
+  }
+
+  .dashed {
+    border-style: dashed;
+  }
+
+  .eval-bar {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    margin-top: 8px;
+  }
+  .eval-box {
+    border: 2.5px solid #111;
+    border-radius: 20px;
+    padding: 10px 18px;
+    text-align: center;
+    background: #f5f5f5;
+    flex: 1;
+  }
+  .eval-box .ev-title {
+    font-size: 11px;
+    font-weight: 700;
+    color: #555;
+  }
+  .eval-box .ev-value {
+    font-size: 16px;
+    font-weight: 900;
+    color: #111;
+    margin-top: 2px;
+  }
+
+  .feedback-wrapper {
+    position: relative;
+  }
+  .feedback-label {
+    position: absolute;
+    left: -38px;
+    top: 50%;
+    transform: translateY(-50%) rotate(-90deg);
+    font-size: 11px;
+    font-weight: 700;
+    color: #666;
+    white-space: nowrap;
+    letter-spacing: 0.5px;
+  }
+  .feedback-arrow {
+    position: absolute;
+    left: -18px;
+    top: 30px;
+    bottom: 30px;
+    width: 3px;
+    background: #999;
+  }
+  .feedback-arrow::before {
+    content: "▲";
+    position: absolute;
+    top: -14px;
+    left: -6px;
+    font-size: 14px;
+    color: #999;
+  }
+  .feedback-arrow::after {
+    content: "";
+    position: absolute;
+    bottom: -2px;
+    left: -4px;
+    width: 10px;
+    height: 3px;
+    background: #999;
+    border-radius: 2px;
+  }
+
+  .section-label {
+    font-size: 12px;
+    font-weight: 700;
+    text-align: center;
+    margin: 4px 0;
+    color: #555;
+  }
+</style>
+</head>
+<body>
+
+<h1>Design of the Proposed Work</h1>
+
+<div class="feedback-wrapper" style="margin-left: 50px;">
+<div class="feedback-arrow"></div>
+<div class="feedback-label">Feedback Loop for Continuous Improvement</div>
+
+<!-- LAYER 1 -->
+<div class="layer">
+  <div class="layer-title">Layer 1 — User / Application Layer</div>
+  <div class="layer-row">
+    <div class="box">
+      <div class="box-title">Microgrid Operator</div>
+      <ul>
+        <li>View 3D Digital Twin Scene</li>
+        <li>Monitor Real-Time KPI Dashboard</li>
+        <li>Run What-If Stress Scenarios</li>
+        <li>Receive Smart Dispatch Advisories</li>
+      </ul>
+    </div>
+    <div class="box">
+      <div class="box-title">Web Interface</div>
+      <ul>
+        <li>Interactive 3D Building + Solar Panels + Battery</li>
+        <li>Live KPI Cards (Solar kW, Load kW, SoC%, Cost ₹)</li>
+        <li>Energy Balance / Tariff / SoC Charts</li>
+        <li>Scenario Controls (Cloudy, Peak Load, Battery Failure)</li>
+        <li>Toast Alerts &amp; Notifications</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="arrow-down">HTTP / WebSocket</div>
+
+<!-- LAYER 2 -->
+<div class="columns">
+  <!-- Frontend -->
+  <div class="col-left">
+    <div class="layer" style="height: 100%;">
+      <div class="layer-title">Layer 2a — Frontend (React + Three.js)</div>
+      <div class="grid-2x2">
+        <div class="small-box">
+          <div class="sb-title">3D Scene</div>
+          <div class="sb-desc">Building, Room, SolarPanels,<br>Cable, GridPole, Appliances,<br>FloatingControls</div>
+        </div>
+        <div class="small-box">
+          <div class="sb-title">Dashboard</div>
+          <div class="sb-desc">TopBar (Live Badge),<br>KpiCards, BottomBar,<br>RoomDetailCard, ToastAlert</div>
+        </div>
+        <div class="small-box">
+          <div class="sb-title">Analytics Charts</div>
+          <div class="sb-desc">EnergyBalanceChart,<br>BatterySoCChart,<br>TariffBandsChart,<br>CumulativeCostChart</div>
+        </div>
+        <div class="small-box">
+          <div class="sb-title">State Management</div>
+          <div class="sb-desc">Zustand Store,<br>WebSocket Real-Time Feed,<br>Custom Hooks</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow-right"><span>⟵ JSON API ⟶</span></div>
+
+  <!-- Backend -->
+  <div class="col-right">
+    <div class="layer" style="height: 100%;">
+      <div class="layer-title">Layer 2b — Backend (FastAPI + Python)</div>
+
+      <div class="small-box" style="margin-bottom: 8px;">
+        <div class="sb-title">API &amp; Routing Layer</div>
+        <div class="sb-desc">RESTful Routes · Controllers · Pydantic Schemas · WebSocket Streaming</div>
+      </div>
+
+      <div class="section-label">Physics Simulation Engine</div>
+      <div class="grid-2x2" style="margin-bottom: 8px;">
+        <div class="small-box">
+          <div class="sb-title">Solar Model</div>
+          <div class="sb-desc">Irradiance curve, PV efficiency,<br>temp derating, cloud attenuation</div>
+        </div>
+        <div class="small-box">
+          <div class="sb-title">Battery Model (BESS)</div>
+          <div class="sb-desc">SoC dynamics, charge/discharge,<br>thermal model, SoH degradation</div>
+        </div>
+        <div class="small-box">
+          <div class="sb-title">Load Model</div>
+          <div class="sb-desc">Diurnal commercial profile,<br>surge multiplier, baseload</div>
+        </div>
+        <div class="small-box">
+          <div class="sb-title">Weather Model</div>
+          <div class="sb-desc">GHI sine curve, ambient temp,<br>cloud cover, seasonal variation</div>
+        </div>
+      </div>
+
+      <div class="section-label">AI / ML Engine</div>
+      <div class="grid-2x2" style="margin-bottom: 8px;">
+        <div class="small-box">
+          <div class="sb-title">LSTM Forecaster</div>
+          <div class="sb-desc">24h solar &amp; load prediction,<br>P10 / P50 / P90 quantile bounds</div>
+        </div>
+        <div class="small-box">
+          <div class="sb-title">PINN (Physics-Informed NN)</div>
+          <div class="sb-desc">Coulomb counting ODE,<br>energy balance residual,<br>anomaly detection</div>
+        </div>
+      </div>
+
+      <div class="grid-2x2">
+        <div class="small-box">
+          <div class="sb-title">Optimization &amp; Dispatch</div>
+          <div class="sb-desc">24h Optimizer, MPC Controller,<br>Decision Engine, Scheduler<br><b>Modes:</b> AUTO_AI · PEAK_SHAVING<br>MAX_RENEWABLE · ISLANDED</div>
+        </div>
+        <div class="small-box">
+          <div class="sb-title">Scenario Stress Testing</div>
+          <div class="sb-desc">Cloudy Weather (90% cloud)<br>Peak Load Surge (1.9×)<br>Battery Failure<br>Custom Scenario</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="arrow-down">Data Flow</div>
+
+<!-- LAYER 3 -->
+<div class="layer">
+  <div class="layer-title">Layer 3 — Data Layer</div>
+  <div class="grid-3">
+    <div class="small-box">
+      <div class="sb-title">SQLite Database</div>
+      <div class="sb-desc">ecogrid.db — telemetry logs,<br>historical time-series</div>
+    </div>
+    <div class="small-box">
+      <div class="sb-title">Configuration</div>
+      <div class="sb-desc">TNPDCL Tariffs (₹5.80 / ₹7.50 / ₹9.50)<br>Site coordinates, battery specs</div>
+    </div>
+    <div class="small-box">
+      <div class="sb-title">Model Storage</div>
+      <div class="sb-desc">Trained LSTM weights,<br>PINN parameters</div>
+    </div>
+  </div>
+</div>
+
+<div class="arrow-down"></div>
+
+<!-- LAYER 4 -->
+<div class="layer dashed">
+  <div class="layer-title">Layer 4 — Data Sources (Real-Time Telemetry &amp; External APIs)</div>
+  <div class="grid-4">
+    <div class="small-box">
+      <div class="sb-title">RS485 Modbus RTU</div>
+      <div class="sb-desc">USB-to-RS485, COM3,<br>9600 baud, Schneider EM6400NG</div>
+    </div>
+    <div class="small-box">
+      <div class="sb-title">Modbus TCP</div>
+      <div class="sb-desc">Ethernet IP<br>192.168.1.100:502<br>Inverter polling</div>
+    </div>
+    <div class="small-box">
+      <div class="sb-title">MQTT Subscriber</div>
+      <div class="sb-desc">ecogrid/meter/telemetry<br>ecogrid/solar/inverter<br>ecogrid/battery/bms</div>
+    </div>
+    <div class="small-box">
+      <div class="sb-title">Weather API</div>
+      <div class="sb-desc">Open-Meteo<br>GHI forecast, temperature,<br>cloud cover</div>
+    </div>
+  </div>
+</div>
+
+<div class="arrow-down"></div>
+
+<!-- LAYER 5 -->
+<div class="layer" style="background: #eee;">
+  <div class="layer-title">Layer 5 — System Evaluation Metrics</div>
+  <div class="eval-bar">
+    <div class="eval-box">
+      <div class="ev-title">Forecasting Accuracy</div>
+      <div class="ev-value">R² &gt; 0.95</div>
+      <div class="ev-title">MAPE &lt; 7%</div>
+    </div>
+    <div class="eval-box">
+      <div class="ev-title">Physics Validation</div>
+      <div class="ev-value">PINN 99.7%</div>
+      <div class="ev-title">Confidence</div>
+    </div>
+    <div class="eval-box">
+      <div class="ev-title">Cost Optimization</div>
+      <div class="ev-value">8.7% Saving</div>
+      <div class="ev-title">₹794/day</div>
+    </div>
+    <div class="eval-box">
+      <div class="ev-title">Environmental Impact</div>
+      <div class="ev-value">35% CO₂</div>
+      <div class="ev-title">Reduction</div>
+    </div>
+  </div>
+</div>
+
+</div><!-- end feedback-wrapper -->
+
+</body>
+</html>

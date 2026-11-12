@@ -1,0 +1,13 @@
+{
+  "status": "CONVERGED_SUCCESSFULLY",
+  "epochs_trained": 15,
+  "final_val_loss": 0.00151,
+  "solar_mae_kw": 2.42,
+  "solar_rmse_kw": 4.6,
+  "load_mae_kw": 4.25,
+  "load_rmse_kw": 6.36,
+  "samples_train": 12567,
+  "samples_test": 3107,
+  "model_artifact": "C:\\Users\\sudha\\Downloads\\EcoGrid-Twin\\EcoGrid-Twin\\models\\lstm_model.keras",
+  "scaler_artifact": "C:\\Users\\sudha\\Downloads\\EcoGrid-Twin\\EcoGrid-Twin\\models\\scaler.pkl"
+}
