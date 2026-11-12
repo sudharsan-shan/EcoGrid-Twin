@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # EcoGrid-Twin — Tamil Nadu Microgrid Telemetry & Digital Twin Platform
 
 A production-grade, read-only digital twin and real-time monitoring platform for microgrid energy management tailored for **Tamil Nadu, India**.
@@ -86,3 +87,6 @@ node frontend/tests/simulation.test.mjs
 
 ## 📄 License
 MIT — see [LICENSE](LICENSE)
+=======
+# EcoGrid-Twin
+>>>>>>> 5f701f6ab45e17ee3fe650cde6fd464dfc77580a
