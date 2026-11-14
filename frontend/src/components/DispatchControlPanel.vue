@@ -384,6 +384,10 @@ onUnmounted(() => {
   transform: translateY(-2px);
 }
 
+.mode-card:active {
+  transform: scale(0.98);
+}
+
 .mode-card.active {
   border-color: #38bdf8;
   background: rgba(2, 132, 199, 0.15);

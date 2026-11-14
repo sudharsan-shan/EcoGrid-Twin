@@ -19,40 +19,43 @@
     </div>
 
     <!-- Metric Summary Cards -->
-    <div class="metrics-grid">
-      <div class="glass-card stat-card">
+    <div v-if="!steps.length" class="metrics-grid">
+      <div v-for="i in 4" :key="i" class="glass-card stat-card skeleton-shimmer" style="height: 110px;"></div>
+    </div>
+    <div v-else class="metrics-grid">
+      <div class="glass-card stat-card card-accent-solar">
         <div class="stat-top">
           <span class="stat-label">Total Solar Generation</span>
           <span class="source-tag">PV Physical Model</span>
         </div>
-        <span class="stat-value text-solar">{{ summary.total_solar_kwh }} <small>kWh</small></span>
+        <span class="stat-value text-solar tabular-nums">{{ summary.total_solar_kwh }} <small>kWh</small></span>
         <span class="stat-meta">Clean zero-emission solar yield</span>
       </div>
 
-      <div class="glass-card stat-card">
+      <div class="glass-card stat-card card-accent-load">
         <div class="stat-top">
           <span class="stat-label">Total Facility Demand</span>
           <span class="source-tag">Smart Meter</span>
         </div>
-        <span class="stat-value text-load">{{ summary.total_load_kwh }} <small>kWh</small></span>
+        <span class="stat-value text-load tabular-nums">{{ summary.total_load_kwh }} <small>kWh</small></span>
         <span class="stat-meta">Combined industrial base & HVAC load</span>
       </div>
 
-      <div class="glass-card stat-card">
+      <div class="glass-card stat-card card-accent-grid">
         <div class="stat-top">
           <span class="stat-label">Daily Bill Savings</span>
           <span class="source-tag">TNPDCL {{ store.config.tnpdcl_category }}</span>
         </div>
-        <span class="stat-value text-grid">₹{{ summary.cost_savings }}</span>
+        <span class="stat-value text-grid tabular-nums">₹{{ summary.cost_savings }}</span>
         <span class="stat-meta">Saved {{ summary.cost_savings_pct }}% vs baseline</span>
       </div>
 
-      <div class="glass-card stat-card">
+      <div class="glass-card stat-card card-accent-solar">
         <div class="stat-top">
           <span class="stat-label">Total CO₂ Avoided</span>
           <span class="source-tag">CEA Grid Baseline</span>
         </div>
-        <span class="stat-value text-eco">{{ summary.co2_saved_kg }} <small>kg CO₂</small></span>
+        <span class="stat-value text-eco tabular-nums">{{ summary.co2_saved_kg }} <small>kg CO₂</small></span>
         <span class="stat-meta">Based on 0.72 kg CO₂/kWh grid factor</span>
       </div>
     </div>
@@ -60,7 +63,7 @@
     <!-- Analytics Charts Grid - Row 1 -->
     <div class="charts-grid-row">
       <!-- 1. Tariff Band Chart with Current Price Marker -->
-      <div class="glass-card chart-card">
+      <div class="glass-card chart-card card-accent-battery">
         <div class="chart-header">
           <div>
             <h3 class="chart-title">TNPDCL Time-of-Use (ToU) Tariff Schedule</h3>
@@ -74,7 +77,7 @@
       </div>
 
       <!-- 2. Cumulative Cost vs Baseline -->
-      <div class="glass-card chart-card">
+      <div class="glass-card chart-card card-accent-solar">
         <div class="chart-header">
           <div>
             <h3 class="chart-title">Cumulative Energy Cost vs Baseline (₹ INR)</h3>
@@ -91,7 +94,7 @@
     <!-- Analytics Charts Grid - Row 2 -->
     <div class="charts-grid-row">
       <!-- 3. Instantaneous and Cumulative CO2 vs Baseline -->
-      <div class="glass-card chart-card">
+      <div class="glass-card chart-card card-accent-grid">
         <div class="chart-header">
           <div>
             <h3 class="chart-title">Instantaneous & Cumulative CO₂ Emissions (kg)</h3>
@@ -105,7 +108,7 @@
       </div>
 
       <!-- 4. Self-Sufficiency Index Curve -->
-      <div class="glass-card chart-card">
+      <div class="glass-card chart-card card-accent-solar">
         <div class="chart-header">
           <div>
             <h3 class="chart-title">24-Hour Self-Sufficiency Index (%)</h3>

@@ -451,6 +451,10 @@ onUnmounted(() => {
   transform: translateY(-2px);
 }
 
+.scenario-card:active {
+  transform: scale(0.98);
+}
+
 .scenario-card.active {
   border-color: #f43f5e;
   background: rgba(244, 63, 94, 0.12);

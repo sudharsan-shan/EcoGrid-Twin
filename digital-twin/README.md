@@ -68,7 +68,7 @@ digital-twin/src/
 
 ## 🔌 How to Plug in Real Data (MQTT or REST API)
 
-All presentation, UI, charts, and 3D scenes consume data through the **`useTwinData()`** hook in [`src/hooks/useTwinData.ts`](file:///c:/Users/sudha/Downloads/EcoGrid-Twin/EcoGrid-Twin/digital-twin/src/hooks/useTwinData.ts).
+All presentation, UI, charts, and 3D scenes consume data through the **`useTwinData()`** hook in [`src/hooks/useTwinData.ts`](src/hooks/useTwinData.ts).
 
 To connect real hardware sensors, smart meters, or an MQTT/Kafka broker:
 

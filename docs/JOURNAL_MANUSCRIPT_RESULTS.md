@@ -13,11 +13,11 @@ The proposed **EcoGrid-Twin** cyber-physical framework is designed for industria
 | **Programming Language** | Python 3.11/3.13 (Backend simulation, AI engines, REST/WebSocket API) & TypeScript / Vue 3 / React (Three.js 3D Digital Twin) |
 | **Development Environment** | FastAPI asynchronous backend, Vite dev server, Pinia reactive state store, Chart.js & Three.js WebGL renderers |
 | **Case Study Location** | Chennai / Villupuram Industrial Zone, Tamil Nadu ($13.0827^\circ\text{N}, 80.2707^\circ\text{E}$), Asia/Kolkata Timezone (UTC+5:30) |
-| **Dataset Size & Resolution** | 35,040 dispatch intervals (96 intervals/day at 15-minute resolution, $\Delta t = 0.25\,\text{h}$) across 6 campus facilities (52,560 facility-hours) |
-| **Input Telemetry & Data Sources** | Modbus RTU RS485 registers (Schneider EM6400NG / Selec MFM384), ERA5-Land & Open-Meteo hourly solar irradiance ($GHI$) and ambient temperature ($T_\text{amb}$) |
+| **Dataset Size & Resolution** | 63,072 dispatch intervals (96 intervals/day at 15-minute resolution, $\Delta t = 0.25\,\text{h}$) spanning 657 calendar days |
+| **Input Telemetry & Data Sources** | Modbus RTU RS485 registers (Schneider EM6400NG / Selec MFM384), NASA POWER API meteorological observations (hourly GHI and $T_\text{amb}$ linearly interpolated to 15-min intervals) |
 | **Rooftop Solar PV Model** | $120\,\text{kWp}$ monocrystalline array, NOCT thermal derating ($\gamma = -0.40\%/^\circ\text{C}$ above $25^\circ\text{C}$), non-linear cloud attenuation factor: $\eta_\text{cloud} = 1 - 0.8(\text{cloud}/100)^{1.3}$ |
-| **Battery Energy Storage System (BESS)** | $250\,\text{kWh} / 60\,\text{kW}$ Lithium Iron Phosphate ($\text{LiFePO}_4$) Thevenin 2-RC equivalent circuit model, operating SoC boundaries $[15\%, 95\%]$, internal resistance $R_0 = 0.015\,\Omega$, thermal convection cooling coefficient $hA = 12\,\text{W/K}$ |
-| **AI / Machine Learning Stack** | Physics-Informed Neural Network (PINN) for electrochemical differential consistency verification + Bi-LSTM probabilistic quantile forecaster ($P_{10}, P_{50}, P_{90}$) |
+| **Battery Energy Storage System (BESS)** | $250\,\text{kWh} / 60\,\text{kW}$ Lithium Iron Phosphate ($\text{LiFePO}_4$) Thevenin equivalent circuit model, operating SoC boundaries $[15\%, 95\%]$, Joule heating with convective cooling |
+| **AI / Machine Learning Stack** | Physics-Informed Neural Network (PINN) surrogate (`models/pinn_model.keras`) with collocation loss + Stacked LSTM point forecaster with empirical residual-calibrated prediction intervals ($P_{10}, P_{50}, P_{90}$) |
 | **Tariff Schedule (TNPDCL LT-III-B)** | Peak (06:00–09:00 & 18:00–21:00): ₹9.50/kWh; Standard: ₹7.50/kWh; Off-Peak (22:00–05:00): ₹5.80/kWh; Net Feed-in: ₹3.50/kWh |
 | **Grid Decarbonization Metric** | Regional grid emission factor $\mu_\text{grid} = 0.72\,\text{kg CO}_2/\text{kWh}$ (Southern Indian Grid average) |
 | **Evaluated Scenarios** | (1) Baseline Normal, (2) Sudden Cloud Storm (90% occlusion), (3) Examination HVAC Surge (1.9× peak load), (4) BESS Inverter Failure |
@@ -87,37 +87,50 @@ To validate the robustness of the cyber-physical architecture, the platform was 
 
 ---
 
-### 5.5. Deep Learning Forecasting: Bi-LSTM Quantile Analysis (Figure 5)
+### 5.5. Deep Learning Forecasting: Stacked LSTM & Calibrated Residual Intervals (Figure 5)
 
-The intelligence layer utilizes a Bidirectional Long Short-Term Memory (Bi-LSTM) network with pinball loss estimation to output probabilistic prediction cones ($P_{10}, P_{50}, P_{90}$):
+The intelligence layer utilizes a stacked sequence-to-sequence Long Short-Term Memory (LSTM) network (64 units with BatchNormalization and 32 units with Dropout) trained on a strict chronological 70/10/20 train/validation/test split. Prediction intervals ($P_{10}, P_{90}$) are constructed using empirical residual quantiles evaluated across the validation partition:
 
-- **Solar Irradiance Forecasting**:
-  - Mean Absolute Percentage Error ($\text{MAPE}$): **$6.78\%$**
-  - Root Mean Square Error ($\text{RMSE}$): **$6.69\,\text{kW}$**
-  - Coefficient of Determination ($R^2$): **$0.9544$**
-  - Prediction Interval Coverage Probability ($\text{PICP}_{10-90}$): **$100.0\%$**
-- **Electrical Load Forecasting**:
-  - Mean Absolute Percentage Error ($\text{MAPE}$): **$3.71\%$**
-  - Root Mean Square Error ($\text{RMSE}$): **$3.99\,\text{kW}$**
-  - Coefficient of Determination ($R^2$): **$0.9557$**
-  - Prediction Interval Coverage Probability ($\text{PICP}_{10-90}$): **$95.8\%$**
+- **Solar Photovoltaic Generation Forecasting (Held-Out Test Set)**:
+  - Mean Absolute Error ($\text{MAE}$): **$2.52\,\text{kW}$** (Daytime-only MAE: $4.35\,\text{kW}$)
+  - Root Mean Square Error ($\text{RMSE}$): **$4.76\,\text{kW}$** (vs. Persistence $6.86\,\text{kW}$, Ridge $4.59\,\text{kW}$)
+  - Coefficient of Determination ($R^2$): **$0.9567$**
+  - Weighted Absolute Percentage Error ($\text{WAPE}$): **$13.25\%$**
+  - Forecast Skill Score vs. Persistence: **$+30.61\%$** ($\text{Skill} = 0.3061$)
+  - Empirical Prediction Interval Coverage ($\text{PICP}_{10-90}$): **$76.65\%$** (Target: $80.0\%$, MPIW: $5.78\,\text{kW}$)
 
-The tight quantile envelope provides the downstream optimizer with reliable bounds, ensuring microgrid dispatch decisions remain resilient against cloud cover intermittency and stochastic occupancy shifts.
+- **Building Electrical Load Forecasting (Held-Out Test Set)**:
+  - Mean Absolute Error ($\text{MAE}$): **$5.46\,\text{kW}$**
+  - Root Mean Square Error ($\text{RMSE}$): **$7.64\,\text{kW}$** (vs. Persistence $20.09\,\text{kW}$, Ridge $10.32\,\text{kW}$)
+  - Coefficient of Determination ($R^2$): **$0.9496$**
+  - Weighted Absolute Percentage Error ($\text{WAPE}$): **$5.76\%$**
+  - Forecast Skill Score vs. Persistence: **$+61.98\%$** ($\text{Skill} = 0.6198$)
+  - Empirical Prediction Interval Coverage ($\text{PICP}_{10-90}$): **$79.24\%$** (Target: $80.0\%$, MPIW: $14.82\,\text{kW}$)
+
+The empirical residual quantiles provide calibrated physical bounds without relying on uncalibrated heuristic scaling multipliers, offering defensible bounds for lookahead dispatch optimization.
 
 ---
 
-### 5.6. Physics-Informed Neural Network (PINN) State Validation (Figure 6)
+### 5.6. Physics-Informed Neural Network (PINN) Surrogate & Ablation (Figure 6, Figure S1)
 
-The embedded PINN enforces electrochemical mass and charge conservation laws:
+The battery digital twin incorporates a Physics-Informed Neural Network (PINN) surrogate model (`models/pinn_model.keras`) trained on multi-day physical simulation trajectories (`dataset/battery_sim_trajectories.csv`, 10,944 steps, seed=42). The network loss function combines supervised data loss with differential energy conservation constraints and boundary penalties:
 
-$$\mathcal{R}_\text{physics} = \left| \frac{\text{dSoC}}{\text{d}t} + \frac{\eta \cdot I(t)}{Q_\text{nom}} \right| + \lambda \left| \frac{\text{d}T_\text{bat}}{\text{d}t} - \frac{I^2 R_0 - hA(T_\text{bat} - T_\text{amb})}{m c_p} \right|$$
+$$\mathcal{L}_\text{PINN} = \mathcal{L}_\text{data} + \lambda_\text{phys} \mathcal{L}_\text{physics} + \lambda_\text{bound} \mathcal{L}_\text{boundary}$$
 
-$$\text{Confidence Score } C = \max\left(0,\, 1 - 0.05 \mathcal{R}_\text{physics} - 0.01 |P_\text{err}|\right)$$
+$$\mathcal{L}_\text{physics} = \mathbb{E}\left[ \left| (\text{SoC}_{t+1} - \text{SoC}_t) - \Delta\text{SoC}_\text{physics}(P_t, \eta, C, \Delta t) \right|^2 \right]$$
 
-- **Physical Consistency**: Mean physical residual $\bar{\mathcal{R}} = 0.0622$ with standard deviation $\sigma = 0.4549$.
-- **Confidence Metric**: Over $97.9\%$ of operational time steps maintain physics confidence $> 0.95$, with an overall mean confidence score of **$99.69\%$**.
-- **State Estimation Accuracy**: The mean SoC discrepancy between the empirical simulator and the PINN reconstruction is only **$1.337\%$** (maximum localized transient error $6.190\%$).
-- **Anomaly Detection**: Physical threshold violations ($\mathcal{R} > 0.50$) occurred in only $2$ out of $96$ time steps during violent step-load changes, validating the high fidelity of the digital twin mirror.
+Physics losses are enforced over empirical trajectory transitions and collocation points sampled across the entire state domain.
+
+- **Ablation Comparison (PINN vs. Plain MLP without physics loss)**:
+  - **In-Distribution Test Performance ($|P| \le 40\,\text{kW}$)**:
+    - PINN: $\text{SoC MAE} = \mathbf{0.1092\%}$, Mean Physics Residual $= \mathbf{0.2583\%}$
+    - Plain MLP: $\text{SoC MAE} = 0.1287\%$, Mean Physics Residual $= 0.2000\%$
+  - **Out-of-Distribution Extrapolation Performance ($|P| > 40\,\text{kW}$ up to $60\,\text{kW}$)**:
+    - PINN: $\text{SoC MAE} = \mathbf{0.2582\%}$, Mean Physics Residual $= 0.7370\%$
+    - Plain MLP: $\text{SoC MAE} = 0.4219\%$, Mean Physics Residual $= 0.6357\%$
+    - **Physical generalizability**: Enforcing physics conservation reduces extrapolation prediction error by **$38.8\%$** on unseen high-power operating regimes.
+- **Physical Confidence Metric**: Over $97.9\%$ of operational steps maintain physics confidence $> 0.95$, with zero persistent anomalies ($\mathcal{R} > 0.50$).
+- **Surrogate Architecture**: 64-64-32 Swish MLP evaluated via `BatteryPINN.estimate_state(...)` returning explicit `"method": "trained_pinn"`.
 
 ---
 
@@ -187,3 +200,13 @@ The EcoGrid-Twin platform successfully operationalizes a digital twin framework 
 2. **$35.0\%$ daily carbon emission abatement** ($536.4\,\text{kg CO}_2/\text{day}$ avoided);
 3. **$99.69\%$ physics confidence** with proactive anomaly isolation under extreme weather and hardware failure transients;
 4. **Sub-second synchronicity** between physical Modbus telemetry and a WebGL 3D digital twin dashboard.
+
+---
+
+## 7. Limitations and Threats to Validity
+
+To ensure transparency and academic rigor, several methodological limitations of this study must be acknowledged:
+1. **Synthetic and Simulated Trajectories**: While meteorological climate data is sourced from real NASA POWER observations for Chennai, facility load profiles (`building_data.csv`) represent synthesized schedules based on commercial campus occupancy patterns.
+2. **Surrogate Nature of the PINN Model**: The battery PINN network is trained on simulation-generated trajectories derived from the Thevenin equivalent circuit equations rather than physical hardware degradation test benches. It functions as an accelerated neural surrogate with physical energy conservation constraints.
+3. **Hardware Integration Boundaries**: Industrial communication adapters (RS485 Modbus RTU/TCP and MQTT) have been tested in simulated environments and loopback testing; long-term galvanic isolation and baud rate degradation under extreme EMI conditions require field validation.
+4. **Single-Site Case Study**: Empirical results reflect the specific solar irradiance, tariff structure (TNPDCL LT-III-B), and ambient temperature regime of Chennai / Tamil Nadu ($13.08^\circ\text{N}, 80.27^\circ\text{E}$) and may vary across other regulatory jurisdictions.

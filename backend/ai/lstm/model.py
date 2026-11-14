@@ -1,10 +1,11 @@
 """
-LSTM & Recurrent Neural Forecasting Architecture for Solar & Load.
-Provides deterministic predictions alongside P10, P50, and P90 confidence intervals,
+Stacked LSTM Point Forecaster with Empirical Residual-Calibrated Prediction Intervals.
+Provides point predictions (P50) alongside calibrated empirical residual bounds (P10, P90),
 with automatic fallback to calibrated physics-based equations.
 """
 
 import os
+import json
 import math
 import numpy as np
 from datetime import datetime, timedelta
@@ -14,9 +15,10 @@ from backend.config import Config
 from backend.utils.logger import logger
 
 _nasa_climate_cache = None
+_interval_calibration_cache = None
 
 def get_nasa_climate_data():
-    """Load and cache real NASA POWER climate observations from merged dataset."""
+    """Load and cache NASA POWER climate observations from merged dataset."""
     global _nasa_climate_cache
     if _nasa_climate_cache is None:
         path = os.path.join(Config.DATASET_DIR, "merged_dataset.csv")
@@ -28,14 +30,28 @@ def get_nasa_climate_data():
                 df = df.set_index("timestamp").sort_index()
                 _nasa_climate_cache = df.resample("1h").mean().interpolate(method="time")
             except Exception as e:
-                logger.warning(f"Could not load real NASA climate records: {e}")
+                logger.warning(f"Could not load climate records: {e}")
                 _nasa_climate_cache = None
     return _nasa_climate_cache
+
+def get_interval_calibration():
+    """Load empirical residual calibration quantiles from models/interval_calibration.json."""
+    global _interval_calibration_cache
+    if _interval_calibration_cache is None:
+        path = os.path.join(Config.MODEL_DIR, "interval_calibration.json")
+        if os.path.exists(path):
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    _interval_calibration_cache = json.load(f)
+            except Exception as e:
+                logger.warning(f"Could not load interval calibration: {e}")
+                _interval_calibration_cache = None
+    return _interval_calibration_cache
 
 class SolarLoadForecaster:
     """
     Forecasting model for microgrid solar generation and load demand.
-    Generates 24-step (or N-step) lookahead predictions with quantile confidence bounds.
+    Stacked LSTM point forecaster with empirical residual-calibrated prediction intervals.
     """
     def __init__(self, solar_capacity_kw: float = 120.0, peak_load_kw: float = 110.0):
         self.solar_capacity_kw = solar_capacity_kw
@@ -51,7 +67,6 @@ class SolarLoadForecaster:
 
         if os.path.exists(model_path) and os.path.exists(scaler_path):
             try:
-                # Lazy import tensorflow only when model file exists
                 import tensorflow as tf
                 from backend.ai.lstm.preprocess import DataPreprocessor
                 self.model = tf.keras.models.load_model(model_path, compile=False)
@@ -71,7 +86,6 @@ class SolarLoadForecaster:
         """
         Generate 24-hour predictive forecast starting from start_dt.
         """
-        # Attempt neural model inference if artifacts are loaded and history is available
         if self.model is not None and self.preprocessor is not None:
             try:
                 return self._predict_neural(start_dt, recent_solar_history, recent_load_history, climate_df)
@@ -87,14 +101,13 @@ class SolarLoadForecaster:
         recent_load_history: List[float] = None,
         climate_df: Optional[Any] = None
     ) -> List[Dict[str, Any]]:
-        """Neural sequence forward-pass with physical boundary enforcement and real NASA climate data."""
+        """Neural sequence forward-pass with calibrated empirical residual prediction intervals."""
         seq_len = 24
         solar_vals = list(recent_solar_history or [])
         load_vals = list(recent_load_history or [])
 
         nasa_df = climate_df if climate_df is not None else get_nasa_climate_data()
 
-        # Build feature matrix incorporating real NASA climate features
         rows = []
         for i in range(seq_len):
             hist_dt = (start_dt - timedelta(hours=seq_len - i)).replace(minute=0, second=0, microsecond=0)
@@ -159,12 +172,16 @@ class SolarLoadForecaster:
         solar_vec = solar_preds[0]
         load_vec = load_preds[0]
 
+        # Load empirical residual calibration quantiles
+        cal = get_interval_calibration()
+        use_calibration = cal is not None and "solar_residuals_by_step" in cal
+
         forecasts = []
         for step in range(24):
             future_dt = start_dt + timedelta(hours=step)
             hour = future_dt.hour + future_dt.minute / 60.0
 
-            # Query future weather from real NASA climate records
+            # Query future weather
             future_temp, future_cloud, future_irr = None, None, None
             if nasa_df is not None:
                 if future_dt in nasa_df.index:
@@ -186,7 +203,20 @@ class SolarLoadForecaster:
             if future_irr is None:
                 future_irr = max(0.0, 850.0 * math.sin(math.pi * (hour - 6) / 12)) if 6 <= hour <= 18 else 0.0
 
-            # Night zero boundary enforcement
+            step_key = str(step + 1)
+            # Calibrated residual interval lookup
+            if use_calibration and step_key in cal["solar_residuals_by_step"]:
+                q10_s = cal["solar_residuals_by_step"][step_key]["q10"]
+                q90_s = cal["solar_residuals_by_step"][step_key]["q90"]
+                q10_l = cal["load_residuals_by_step"][step_key]["q10"]
+                q90_l = cal["load_residuals_by_step"][step_key]["q90"]
+                interval_status = "calibrated"
+            else:
+                q10_s, q90_s = None, None
+                q10_l, q90_l = None, None
+                interval_status = "uncalibrated"
+
+            # Night zero boundary enforcement for solar
             if hour < 6.0 or hour > 18.5:
                 solar_p50 = 0.0
                 solar_p10 = 0.0
@@ -194,13 +224,20 @@ class SolarLoadForecaster:
             else:
                 base_val = float(solar_vec[step])
                 solar_p50 = min(self.solar_capacity_kw, max(0.0, base_val))
-                solar_p10 = max(0.0, solar_p50 * 0.78)
-                solar_p90 = min(self.solar_capacity_kw, solar_p50 * 1.08)
+                if interval_status == "calibrated":
+                    solar_p10 = max(0.0, solar_p50 + q10_s)
+                    solar_p90 = min(self.solar_capacity_kw, solar_p50 + q90_s)
+                else:
+                    solar_p10 = max(0.0, solar_p50 * 0.78)
+                    solar_p90 = min(self.solar_capacity_kw, solar_p50 * 1.08)
 
             load_p50 = max(10.0, min(self.peak_load_kw * 1.25, float(load_vec[step])))
-            load_p10 = round(load_p50 * 0.92, 2)
-            load_p90 = round(load_p50 * 1.10, 2)
-            load_p50 = round(load_p50, 2)
+            if interval_status == "calibrated":
+                load_p10 = max(5.0, load_p50 + q10_l)
+                load_p90 = min(self.peak_load_kw * 1.35, load_p50 + q90_l)
+            else:
+                load_p10 = load_p50 * 0.92
+                load_p90 = load_p50 * 1.10
 
             forecasts.append({
                 "step": step,
@@ -212,10 +249,11 @@ class SolarLoadForecaster:
                 "solar_p10": round(solar_p10, 2),
                 "solar_p50": round(solar_p50, 2),
                 "solar_p90": round(solar_p90, 2),
-                "load_p10": load_p10,
-                "load_p50": load_p50,
-                "load_p90": load_p90,
-                "net_demand_kw": round(load_p50 - solar_p50, 2)
+                "load_p10": round(load_p10, 2),
+                "load_p50": round(load_p50, 2),
+                "load_p90": round(load_p90, 2),
+                "net_demand_kw": round(load_p50 - solar_p50, 2),
+                "intervals": interval_status
             })
 
         return forecasts
@@ -226,31 +264,52 @@ class SolarLoadForecaster:
         recent_solar_history: List[float] = None,
         recent_load_history: List[float] = None
     ) -> List[Dict[str, Any]]:
-        """Calibrated analytical fallback formulation."""
+        """Analytical fallback formulation with calibrated empirical quantiles."""
+        cal = get_interval_calibration()
+        use_calibration = cal is not None and "solar_residuals_by_step" in cal
+
         forecasts = []
         for step in range(24):
             future_dt = start_dt + timedelta(hours=step)
             hour = future_dt.hour + future_dt.minute / 60.0
+            step_key = str(step + 1)
 
-            # 1. Solar generation physical-AI expectation
+            if use_calibration and step_key in cal["solar_residuals_by_step"]:
+                q10_s = cal["solar_residuals_by_step"][step_key]["q10"]
+                q90_s = cal["solar_residuals_by_step"][step_key]["q90"]
+                q10_l = cal["load_residuals_by_step"][step_key]["q10"]
+                q90_l = cal["load_residuals_by_step"][step_key]["q90"]
+                interval_status = "calibrated"
+            else:
+                q10_s, q90_s = None, None
+                q10_l, q90_l = None, None
+                interval_status = "uncalibrated"
+
             if 6.0 <= hour <= 18.5:
                 elevation = math.sin(math.pi * (hour - 6.0) / 12.5)
                 base_solar = self.solar_capacity_kw * (elevation ** 1.2) * 0.92
                 solar_p50 = max(0.0, base_solar)
-                solar_p10 = max(0.0, solar_p50 * 0.78)  # Cloud risk
-                solar_p90 = min(self.solar_capacity_kw, solar_p50 * 1.08) # Clear sky
+                if interval_status == "calibrated":
+                    solar_p10 = max(0.0, solar_p50 + q10_s)
+                    solar_p90 = min(self.solar_capacity_kw, solar_p50 + q90_s)
+                else:
+                    solar_p10 = max(0.0, solar_p50 * 0.78)
+                    solar_p90 = min(self.solar_capacity_kw, solar_p50 * 1.08)
             else:
                 solar_p50 = 0.0
                 solar_p10 = 0.0
                 solar_p90 = 0.0
 
-            # 2. Load demand forecast
             m_peak = math.exp(-0.5 * ((hour - 10.5) / 2.5) ** 2)
             a_peak = math.exp(-0.5 * ((hour - 15.5) / 3.0) ** 2)
             diurnal = 0.30 + 0.70 * max(m_peak, a_peak)
             load_p50 = 40.0 + (self.peak_load_kw - 40.0) * diurnal
-            load_p10 = load_p50 * 0.92
-            load_p90 = load_p50 * 1.10
+            if interval_status == "calibrated":
+                load_p10 = max(5.0, load_p50 + q10_l)
+                load_p90 = min(self.peak_load_kw * 1.35, load_p50 + q90_l)
+            else:
+                load_p10 = load_p50 * 0.92
+                load_p90 = load_p50 * 1.10
 
             forecasts.append({
                 "step": step,
@@ -262,7 +321,8 @@ class SolarLoadForecaster:
                 "load_p10": round(load_p10, 2),
                 "load_p50": round(load_p50, 2),
                 "load_p90": round(load_p90, 2),
-                "net_demand_kw": round(load_p50 - solar_p50, 2)
+                "net_demand_kw": round(load_p50 - solar_p50, 2),
+                "intervals": interval_status
             })
 
         return forecasts

@@ -30,7 +30,8 @@ from backend.utils.helper import get_tnpdcl_tou_price
 def predict_future_needs(start_dt: datetime = None, hours: int = 24, export_csv: str = "future_needs_prediction.csv"):
     """
     Predict future building electrical load, solar generation, and net power deficit
-    driven by real NASA POWER meteorological climate observations and trained LSTM weights.
+    driven by NASA POWER meteorological climate observations (interpolated to 15-min intervals)
+    and trained stacked LSTM weights with empirical residual-calibrated prediction intervals.
     """
     # 1. Load recent history from dataset to prime LSTM memory
     dataset_path = os.path.join(Config.DATASET_DIR, "merged_dataset.csv")

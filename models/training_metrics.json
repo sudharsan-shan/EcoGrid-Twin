@@ -1,13 +1,20 @@
 {
-  "status": "CONVERGED_SUCCESSFULLY",
-  "epochs_trained": 15,
-  "final_val_loss": 0.00151,
-  "solar_mae_kw": 2.42,
-  "solar_rmse_kw": 4.6,
-  "load_mae_kw": 4.25,
-  "load_rmse_kw": 6.36,
-  "samples_train": 12567,
+  "model_architecture": "Stacked LSTM (64-32) with Dropout & BatchNormalization",
+  "split_method": "Chronological 70% Train / 10% Validation / 20% Test",
+  "seed": 42,
+  "epochs_trained": 20,
+  "best_val_loss": 0.00192,
+  "final_val_loss": 0.00195,
+  "solar_mae_kw": 2.52,
+  "solar_rmse_kw": 4.76,
+  "load_mae_kw": 5.46,
+  "load_rmse_kw": 7.64,
+  "samples_train": 10990,
+  "samples_val": 1530,
   "samples_test": 3107,
-  "model_artifact": "C:\\Users\\sudha\\Downloads\\EcoGrid-Twin\\EcoGrid-Twin\\models\\lstm_model.keras",
-  "scaler_artifact": "C:\\Users\\sudha\\Downloads\\EcoGrid-Twin\\EcoGrid-Twin\\models\\scaler.pkl"
+  "artifacts": {
+    "model_artifact": "models/lstm_model.keras",
+    "scaler_artifact": "models/scaler.pkl",
+    "dataset_path": "dataset/merged_dataset.csv"
+  }
 }

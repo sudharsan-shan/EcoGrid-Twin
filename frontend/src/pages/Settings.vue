@@ -70,7 +70,7 @@
 
     <div class="config-grid">
       <!-- 1. Site & Tamil Nadu Geography -->
-      <div class="glass-card config-card">
+      <div class="glass-card config-card card-accent-solar">
         <h3 class="card-title text-solar">1. Site Location & Geography</h3>
         <span class="card-sub">Tamil Nadu site details and weather coordinates</span>
 
@@ -133,7 +133,7 @@
       </div>
 
       <!-- 2. TNPDCL Consumer Category & Electricity Tariffs -->
-      <div class="glass-card config-card">
+      <div class="glass-card config-card card-accent-grid">
         <h3 class="card-title text-grid">2. TNPDCL Electricity Tariffs (₹ INR)</h3>
         <span class="card-sub">Enter tariff values from your TNPDCL electricity bill</span>
 
@@ -187,7 +187,7 @@
       </div>
 
       <!-- 3. RS485 Modbus RTU / TCP Hardware Settings -->
-      <div class="glass-card config-card">
+      <div class="glass-card config-card card-accent-elec">
         <h3 class="card-title text-elec">3. RS485 Modbus Settings</h3>
         <span class="card-sub">Smart meter (Schneider, Selec, Elmeasure) & Solar inverter connection</span>
 
@@ -232,7 +232,7 @@
       </div>
 
       <!-- 4. MQTT Broker Configuration -->
-      <div class="glass-card config-card">
+      <div class="glass-card config-card card-accent-load">
         <h3 class="card-title text-load">4. MQTT Gateway Settings</h3>
         <span class="card-sub">Subscribe to Shelly 3EM, ESP32, or IoT gateway telemetry topics</span>
 
@@ -263,17 +263,46 @@
         </div>
       </div>
     </div>
+
+    <!-- Sticky Bottom Save Bar with Unsaved Changes Indicator -->
+    <div class="sticky-save-bar glass-card" :class="{ 'has-changes': hasUnsavedChanges }">
+      <div class="save-bar-left">
+        <span class="change-dot" :class="hasUnsavedChanges ? 'dot-dirty' : 'dot-clean'"></span>
+        <span v-if="hasUnsavedChanges" class="change-text text-warning font-mono">
+          Unsaved configuration modifications detected
+        </span>
+        <span v-else class="change-text text-muted">
+          All settings synchronized with active runtime
+        </span>
+      </div>
+      <div class="save-bar-actions">
+        <button class="btn btn-outline btn-sm btn-paper-preset" @click="applyPaperPreset" title="Reset all parameters to IEEE/Elsevier journal paper values">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+          <span>Paper Preset</span>
+        </button>
+        <button class="btn btn-primary btn-sm" @click="saveSettings" :disabled="saving">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+          <span>{{ saving ? 'Saving...' : 'Save Configuration' }}</span>
+        </button>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import SimulationClockBar from '../components/SimulationClockBar.vue'
 import { api } from '../services/api'
 import { useSimulationStore } from '../store/simulationStore.js'
 import { PAPER_PRESET } from '../config/sharedConfig.js'
 
 const store = useSimulationStore()
+
+const initialFormJson = ref('')
+const hasUnsavedChanges = computed(() => {
+  if (!initialFormJson.value) return false
+  return JSON.stringify(form.value) !== initialFormJson.value
+})
 
 const availableCities = [
   'Chennai',
@@ -381,6 +410,7 @@ function applyPaperPreset() {
     telemetry_source: 'SIMULATION'
   }
   successMsg.value = 'Paper preset loaded: Chennai 13.08°N 80.27°E, PV 120kWp, BESS 250kWh/60kW, SoC 15-95%, ToU 9.50/7.50/5.80, CO₂ 0.72.'
+  initialFormJson.value = JSON.stringify(form.value)
   setTimeout(() => { successMsg.value = '' }, 4000)
 }
 
@@ -392,6 +422,8 @@ async function loadSettings() {
     }
   } catch (err) {
     console.warn('Backend API settings not reached, using shared simulation store config.')
+  } finally {
+    initialFormJson.value = JSON.stringify(form.value)
   }
 }
 
@@ -428,6 +460,7 @@ async function saveSettings() {
     })
 
     store.sourceMode = form.value.telemetry_source
+    initialFormJson.value = JSON.stringify(form.value)
 
     successMsg.value = `Site configuration saved. All pages updated consistently across simulation!`
     setTimeout(() => {
@@ -615,4 +648,84 @@ onMounted(() => {
 .text-grid { color: var(--color-grid); }
 .text-elec { color: #38bdf8; }
 .text-load { color: var(--color-load); }
+
+/* ─── Sticky Save Bar ─── */
+.sticky-save-bar {
+  position: sticky;
+  bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 20px;
+  background: rgba(10, 16, 28, 0.94);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+  z-index: 90;
+  margin-top: 24px;
+}
+
+.sticky-save-bar.has-changes {
+  border-color: rgba(245, 158, 11, 0.5);
+  box-shadow: 0 10px 30px rgba(245, 158, 11, 0.15);
+}
+
+.save-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.change-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.dot-clean {
+  background: #10b981;
+  box-shadow: 0 0 8px #10b981;
+}
+
+.dot-dirty {
+  background: #f59e0b;
+  box-shadow: 0 0 10px #f59e0b;
+  animation: pulse-dot 1.5s infinite;
+}
+
+.change-text {
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.save-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.btn-paper-preset {
+  border-color: rgba(56, 189, 248, 0.4);
+  color: #38bdf8;
+}
+
+.btn-paper-preset:hover {
+  background: rgba(56, 189, 248, 0.15);
+  border-color: #38bdf8;
+}
+
+@media (max-width: 900px) {
+  .sticky-save-bar {
+    bottom: 74px;
+    flex-direction: column;
+    gap: 10px;
+    align-items: stretch;
+  }
+  .save-bar-actions {
+    justify-content: flex-end;
+  }
+}
 </style>

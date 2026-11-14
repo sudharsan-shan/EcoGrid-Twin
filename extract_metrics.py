@@ -159,7 +159,21 @@ for name, res in scenarios_data.items():
     print(f"    CO2 Emissions:   {co2:.1f} kg")
 
 # ---- FIG 5: LSTM FORECAST ACCURACY ----
-print("\n--- FIG 5: LSTM FORECAST ACCURACY ---")
+print("\n--- FIG 5: LSTM FORECAST ACCURACY & INDEPENDENT BASELINES ---")
+if os.path.exists("models/evaluation_report.json"):
+    with open("models/evaluation_report.json", "r", encoding="utf-8") as f:
+        ev_rep = json.load(f)
+    print(f"  [Independent Held-Out Test Evaluation (models/evaluation_report.json)]")
+    print(f"  Solar Persistence RMSE:       {ev_rep['solar_evaluation']['persistence']['rmse_kw']:.2f} kW")
+    print(f"  Solar Ridge RMSE:             {ev_rep['solar_evaluation']['ridge_regression']['rmse_kw']:.2f} kW")
+    print(f"  Solar Stacked LSTM RMSE:      {ev_rep['solar_evaluation']['lstm']['rmse_kw']:.2f} kW (WAPE {ev_rep['solar_evaluation']['lstm']['wape_pct']:.1f}%)")
+    print(f"  Solar LSTM Skill Score:       {ev_rep['solar_evaluation']['lstm_skill_vs_persistence']:.4f}")
+    print(f"  Solar P10-P90 PICP Coverage:  {ev_rep['solar_evaluation']['prediction_intervals']['picp_observed_pct']:.1f}%")
+    print(f"  Load Persistence RMSE:        {ev_rep['load_evaluation']['persistence']['rmse_kw']:.2f} kW")
+    print(f"  Load Ridge RMSE:              {ev_rep['load_evaluation']['ridge_regression']['rmse_kw']:.2f} kW")
+    print(f"  Load Stacked LSTM RMSE:       {ev_rep['load_evaluation']['lstm']['rmse_kw']:.2f} kW (WAPE {ev_rep['load_evaluation']['lstm']['wape_pct']:.1f}%)")
+    print(f"  Load LSTM Skill Score:        {ev_rep['load_evaluation']['lstm_skill_vs_persistence']:.4f}")
+    print(f"  Load P10-P90 PICP Coverage:   {ev_rep['load_evaluation']['prediction_intervals']['picp_observed_pct']:.1f}%")
 forecaster = SolarLoadForecaster()
 start = datetime(2026, 8, 15, 0, 0, 0)
 fc = forecaster.predict_24h(start)
@@ -199,7 +213,24 @@ print(f"  Solar P10-P90 Coverage:       {solar_coverage:.1f}%")
 print(f"  Load P10-P90 Coverage:        {load_coverage:.1f}%")
 
 # ---- FIG 6: PINN VALIDATION ----
-print("\n--- FIG 6: PINN PHYSICS VALIDATION ---")
+print("\n--- FIG 6: PINN PHYSICS VALIDATION & ABLATION ---")
+if os.path.exists("models/pinn_metrics.json"):
+    with open("models/pinn_metrics.json", "r", encoding="utf-8") as f:
+        pm = json.load(f)
+    print(f"  [Trained PINN Neural Surrogate (models/pinn_metrics.json)]")
+    print(f"  Architecture:                 {pm.get('model_architecture', 'MLP 64-64-32')}")
+    print(f"  In-Distribution Test MAE:     {pm['pinn_results']['in_distribution']['soc_mae']:.4f}% SoC")
+    print(f"  In-Distribution Residual:     {pm['pinn_results']['in_distribution']['mean_physics_residual']:.4f}%")
+    print(f"  Extrapolation (>40 kW) MAE:   {pm['pinn_results']['extrapolation_test']['soc_mae']:.4f}% SoC (vs Plain MLP {pm['plain_mlp_ablation_results']['extrapolation_test']['soc_mae']:.4f}%)")
+    print(f"  Extrapolation Residual:       {pm['pinn_results']['extrapolation_test']['mean_physics_residual']:.4f}%")
+
+if os.path.exists("validation/independent_results.json"):
+    with open("validation/independent_results.json", "r", encoding="utf-8") as f:
+        ir = json.load(f)
+    print(f"\n  [Independent Verification Summary (validation/independent_results.json)]")
+    print(f"  Total Invariant Checks:       {ir['summary']['total_checks']}")
+    print(f"  Passing Checks:               {ir['summary']['passing_checks']}")
+    print(f"  Overall Status:               {ir['summary']['status']}")
 pinn = BatteryPINN()
 residuals = []
 confidences = []

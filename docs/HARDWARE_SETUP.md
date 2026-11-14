@@ -61,7 +61,7 @@ Most RS485 smart meters (Schneider Conzerv, Selec, Elmeasure, Acrel) and solar i
 
 ## 3. Supported Meter & Inverter Register Profiles
 
-EcoGrid-Twin loads register definitions from [`config/device_mapping.example.json`](file:///c:/Users/sudha/Downloads/EcoGrid-Twin/EcoGrid-Twin/config/device_mapping.example.json).
+EcoGrid-Twin loads register definitions from [`config/device_mapping.example.json`](../config/device_mapping.example.json).
 
 ### 3.1 Schneider Electric Conzerv EM6400NG / EM6400
 - **Baud Rate**: 9600 | **Parity**: None | **Stop Bits**: 1 | **Function Code**: `03`

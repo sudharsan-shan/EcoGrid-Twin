@@ -7,7 +7,9 @@
     <KpiCards />
 
     <!-- 2. Flagship Animated Microgrid Topology Schematic -->
-    <MicrogridTopology />
+    <div class="section-container">
+      <MicrogridTopology />
+    </div>
 
     <!-- 3. Real-time Charts Grid (Power Telemetry + 24h AI Forecast) -->
     <div class="charts-grid">
@@ -16,10 +18,14 @@
     </div>
 
     <!-- 4. Dispatch Mode Selector & Smart Optimizer -->
-    <DispatchControlPanel />
+    <div class="section-container">
+      <DispatchControlPanel />
+    </div>
 
     <!-- 5. "What-If" Scenario Stress Testing -->
-    <ScenarioRunner />
+    <div class="section-container">
+      <ScenarioRunner />
+    </div>
   </div>
 </template>
 
@@ -37,13 +43,22 @@ import ScenarioRunner from '../components/ScenarioRunner.vue'
 .home-view {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 16px;
 }
 
 .charts-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
-  gap: 20px;
-  margin-bottom: 24px;
+  grid-template-columns: repeat(auto-fit, minmax(440px, 1fr));
+  gap: 18px;
+}
+
+.section-container {
+  width: 100%;
+}
+
+@media (max-width: 900px) {
+  .charts-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

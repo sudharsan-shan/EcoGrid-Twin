@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # EcoGrid-Twin — Tamil Nadu Microgrid Telemetry & Digital Twin Platform
 
 A production-grade, read-only digital twin and real-time monitoring platform for microgrid energy management tailored for **Tamil Nadu, India**.
@@ -17,17 +16,17 @@ EcoGrid-Twin collects live telemetry from RS485 Modbus RTU smart meters, solar i
    - **Building Load Model**: Dual-peak commercial profile ($10:30$ & $15:30$ peaks) with RC thermal HVAC sensitivity ($2.2\text{ kW/}^\circ\text{C}$ cooling above $24^\circ\text{C}$).
    - **Thevenin Battery Model**: Operating bounds $[15\%, 95\%]$ SoC, Joule heating thermal dynamics with convective cooling, and C-rate estimation.
    - **Guardrail Safety Engine**: Continuous projection of setpoints onto physical feasibility boundaries with incident logging.
-   - **PINN Validator**: Electrochemical differential consistency score $C = \max(0, 1 - 0.05R - 0.01P)$ and anomaly detection ($R > 0.5$).
+   - **PINN Surrogate & Validator**: Real trained neural surrogate (`models/pinn_model.keras`, 64-64-32 MLP with Swish activation) enforcing differential energy balance and boundary penalties on collocation points, plus analytical electrochemical consistency score $C = \max(0, 1 - 0.05R - 0.01P)$.
 3. **Intelligence & Optimization Layer**:
-   - Bi-LSTM probabilistic quantile forecasting (P10, P50, P90) for both Solar and Load with MAPE, RMSE, and $R^2$ metrics card.
-   - Three dispatch policies: `AUTO_AI` (cost & carbon multi-objective), `PEAK_SHAVING` (TNPDCL peak window avoidance), `MAX_RENEWABLE` (100% solar self-consumption), plus `ISLANDED`.
-   - 24-hour lookahead smart dispatch optimizer.
+   - **Stacked LSTM Point Forecaster with Calibrated Intervals**: 64-32 sequence-to-sequence deep neural network trained on a strict chronological 70/10/20 train/validation/test split. Constructs physical $P_{10}$ and $P_{90}$ bounds from validation empirical residual quantiles (~80% PICP coverage).
+   - **Three Dispatch Policies**: `AUTO_AI` (cost & carbon multi-objective), `PEAK_SHAVING` (TNPDCL peak window avoidance), `MAX_RENEWABLE` (100% solar self-consumption), plus `ISLANDED`.
+   - **24-Hour Lookahead Smart Dispatch**: PuLP mixed-integer linear programming (MILP) cost optimizer.
 4. **Interactive 3D Smart Building Digital Twin**:
    - WebGL / Three.js cutaway visualization of the two-floor facility (30m x 16m) with roof toggle, room loads, solar panels, battery container, 11kV feeder pole, and dynamic power cable particle flows.
-5. **Paper Benchmark Validation & Exports**:
+5. **Paper Benchmark & Independent Invariant Validation**:
    - Real-time recomputation of Tables 2–10 with pass/fail tolerance against paper values.
-   - One-click CSV export of all 96-step telemetry data.
-   - One-click PNG report generation.
+   - Independent verification suite (`validation/independent_checks.py`) checking Kirchhoff power balance, state boundaries, thermal safety limits, and pvlib clear-sky solar reference.
+   - One-click CSV export of all 96-step telemetry data and PNG report generation.
 
 ---
 
@@ -37,17 +36,27 @@ EcoGrid-Twin collects live telemetry from RS485 Modbus RTU smart meters, solar i
 ```powershell
 # In project root:
 .\.venv\Scripts\activate
+pip install -r requirements.txt
 python -m backend.app
 ```
 *Backend API starts at `http://127.0.0.1:8000` with Swagger docs at `http://127.0.0.1:8000/docs`.*
 
-### 2. Frontend Dashboard Setup
+### 2. Frontend Dashboard Setup (Primary Vue 3 App)
 ```powershell
 cd frontend
 npm install
 npm run dev
 ```
 *Frontend dashboard opens at `http://localhost:5173`.*
+
+### 3. Standalone React 3D Digital Twin Prototype (Optional)
+The project also includes a standalone React 3D prototype in `digital-twin/` with its own isolated client-side simulator:
+```powershell
+cd digital-twin
+npm install
+npm run dev
+```
+*React 3D digital twin prototype runs on port `http://localhost:5174` alongside the primary Vue dashboard.*
 
 ---
 
@@ -87,6 +96,3 @@ node frontend/tests/simulation.test.mjs
 
 ## 📄 License
 MIT — see [LICENSE](LICENSE)
-=======
-# EcoGrid-Twin
->>>>>>> 5f701f6ab45e17ee3fe650cde6fd464dfc77580a

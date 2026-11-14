@@ -1,0 +1,68 @@
+{
+  "title": "Independent Microgrid Physical & Neural Verification Report",
+  "generated_at": "2026-11-14T15:26:38.095402",
+  "summary": {
+    "total_checks": 7,
+    "passing_checks": 7,
+    "pass_rate_pct": 100.0,
+    "status": "ALL_PASSING"
+  },
+  "checks": [
+    {
+      "check_id": "CHK-01",
+      "category": "Kirchhoff Power Balance Invariant",
+      "description": "Continuous instantaneous generation vs demand balance at all 96 timesteps (|Inflows - Outflows|)",
+      "tolerance": "< 0.001 kW",
+      "observed_value": "0.000000 kW",
+      "status": "PASS"
+    },
+    {
+      "check_id": "CHK-02",
+      "category": "Battery Operating State Boundaries",
+      "description": "Enforcement of strict State of Charge limits [15.0%, 95.0%]",
+      "tolerance": "0 boundary violations",
+      "observed_value": "0 violations",
+      "status": "PASS"
+    },
+    {
+      "check_id": "CHK-03",
+      "category": "Battery Thermal Safety Boundary",
+      "description": "Continuous pack temperature compliance below emergency warning threshold (55.0\u00b0C)",
+      "tolerance": "T_pack <= 55.0\u00b0C",
+      "observed_value": "Max 32.55\u00b0C",
+      "status": "PASS"
+    },
+    {
+      "check_id": "CHK-04",
+      "category": "pvlib Solar Model Reference",
+      "description": "Clear-sky peak generation compared with pvlib Ineichen clear-sky radiation model for Chennai",
+      "tolerance": "Relative deviation < 15.0%",
+      "observed_value": "91.8 kW vs 102.0 kW pvlib (10.03% diff)",
+      "status": "PASS"
+    },
+    {
+      "check_id": "CHK-05",
+      "category": "Forecaster Skill vs Persistence",
+      "description": "Forecast skill score superiority over naive persistence (1 - RMSE_model / RMSE_persistence)",
+      "tolerance": "Skill score > 0.20",
+      "observed_value": "Solar Skill: 0.31, Load Skill: 0.62",
+      "status": "PASS"
+    },
+    {
+      "check_id": "CHK-06",
+      "category": "Empirical Prediction Interval Coverage",
+      "description": "Validation-calibrated P10-P90 prediction interval coverage probability (PICP) on test set",
+      "tolerance": "PICP in [70.0%, 90.0%] for 80% nominal interval",
+      "observed_value": "Solar: 76.7%, Load: 79.2%",
+      "status": "PASS"
+    },
+    {
+      "check_id": "CHK-07",
+      "category": "PINN Conservation Consistency",
+      "description": "Mean electrochemical energy balance residual of PINN surrogate on unseen high-power test cycles",
+      "tolerance": "Mean residual < 1.0%",
+      "observed_value": "0.7370% residual, 0.1092% test MAE",
+      "status": "PASS"
+    }
+  ]
+}

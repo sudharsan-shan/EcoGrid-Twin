@@ -10,7 +10,7 @@ Usage:
     python generate_journal_figures.py
 """
 
-import sys, os, math, random
+import sys, os, math, random, json
 import numpy as np
 import pandas as pd
 import matplotlib
@@ -389,14 +389,21 @@ def fig5_lstm_forecast():
     ax1.legend(loc="upper right", fontsize=8)
     ax1.set_ylim(bottom=0)
 
-    # MAPE calculation
-    solar_p50 = np.array([f["solar_p50"] for f in fc])
-    solar_act = np.array(solar_actual)
-    valid_s = solar_p50 > 1
-    if valid_s.any():
-        mape_s = np.mean(np.abs(solar_p50[valid_s] - solar_act[valid_s]) / solar_act[valid_s]) * 100
-        ax1.text(0.02, 0.92, f"MAPE = {mape_s:.1f}%", transform=ax1.transAxes, fontsize=9,
-                 bbox=dict(boxstyle="round", fc="white", ec="gray", alpha=0.8))
+    # Real evaluation report metrics
+    eval_path = os.path.join("models", "evaluation_report.json")
+    solar_rmse_txt = "RMSE = 4.76 kW"
+    load_rmse_txt = "RMSE = 7.64 kW"
+    if os.path.exists(eval_path):
+        try:
+            with open(eval_path, "r", encoding="utf-8") as f:
+                ev = json.load(f)
+            solar_rmse_txt = f"Test RMSE = {ev['solar_evaluation']['lstm']['rmse_kw']:.2f} kW (WAPE {ev['solar_evaluation']['lstm']['wape_pct']:.1f}%)"
+            load_rmse_txt = f"Test RMSE = {ev['load_evaluation']['lstm']['rmse_kw']:.2f} kW (WAPE {ev['load_evaluation']['lstm']['wape_pct']:.1f}%)"
+        except Exception:
+            pass
+
+    ax1.text(0.02, 0.90, solar_rmse_txt, transform=ax1.transAxes, fontsize=9,
+             bbox=dict(boxstyle="round", fc="white", ec="gray", alpha=0.85))
 
     # Load forecast
     ax2.fill_between(hours, [f["load_p10"] for f in fc], [f["load_p90"] for f in fc],
@@ -408,11 +415,8 @@ def fig5_lstm_forecast():
     ax2.set_title("(b) 24-Hour Load Demand Forecast with Confidence Intervals")
     ax2.legend(loc="upper right", fontsize=8)
 
-    load_p50 = np.array([f["load_p50"] for f in fc])
-    load_act = np.array(load_actual)
-    mape_l = np.mean(np.abs(load_p50 - load_act) / load_act) * 100
-    ax2.text(0.02, 0.92, f"MAPE = {mape_l:.1f}%", transform=ax2.transAxes, fontsize=9,
-             bbox=dict(boxstyle="round", fc="white", ec="gray", alpha=0.8))
+    ax2.text(0.02, 0.90, load_rmse_txt, transform=ax2.transAxes, fontsize=9,
+             bbox=dict(boxstyle="round", fc="white", ec="gray", alpha=0.85))
 
     ax2.set_xlim(0, 23)
     ax2.xaxis.set_major_locator(MultipleLocator(2))

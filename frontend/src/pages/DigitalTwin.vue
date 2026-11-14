@@ -38,15 +38,23 @@
             </div>
           </div>
 
-          <!-- Bottom Floating Instructions -->
-          <div class="hud-bottom">
-            <span>Left Click + Drag: <strong>Orbit</strong> | Right Click: <strong>Pan</strong> | Scroll: <strong>Zoom</strong> | Click any Room to Inspect</span>
+          <!-- Bottom Floating Instructions & 3D Legend -->
+          <div class="hud-bottom-row">
+            <div class="hud-legend">
+              <span class="legend-item"><span class="legend-chip chip-solar"></span>Solar PV Array</span>
+              <span class="legend-item"><span class="legend-chip chip-inv"></span>Inverter Substation</span>
+              <span class="legend-item"><span class="legend-chip chip-battery"></span>BESS Container</span>
+              <span class="legend-item"><span class="legend-chip chip-grid"></span>11kV Feeder Pole</span>
+            </div>
+            <div class="hud-instructions">
+              <span>Left Drag: <strong>Orbit</strong> | Right Drag: <strong>Pan</strong> | Scroll: <strong>Zoom</strong> | Click Room: <strong>Inspect</strong></span>
+            </div>
           </div>
         </div>
       </div>
 
       <!-- Right Sub-Zone & Equipment Inspector Panel -->
-      <div class="inspector-panel glass-card">
+      <div class="inspector-panel glass-card card-accent-grid">
         <!-- Room Inspector -->
         <div class="inspector-section">
           <div class="section-header">
@@ -576,7 +584,9 @@ onUnmounted(() => {
 .canvas-container {
   position: relative;
   overflow: hidden;
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-xl);
   height: 100%;
   min-height: 520px;
   display: flex;
@@ -697,14 +707,52 @@ onUnmounted(() => {
   color: #fff;
 }
 
-.hud-bottom {
-  background: rgba(15, 23, 42, 0.75);
+.hud-bottom-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  pointer-events: auto;
+}
+
+.hud-legend {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 0.72rem;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #cbd5e1;
+}
+
+.legend-chip {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+
+.chip-solar { background: #38bdf8; box-shadow: 0 0 6px #38bdf8; }
+.chip-inv { background: #10b981; box-shadow: 0 0 6px #10b981; }
+.chip-battery { background: #f59e0b; box-shadow: 0 0 6px #f59e0b; }
+.chip-grid { background: #a855f7; box-shadow: 0 0 6px #a855f7; }
+
+.hud-instructions {
+  background: rgba(15, 23, 42, 0.8);
   border: 1px solid rgba(255, 255, 255, 0.08);
   padding: 6px 14px;
-  border-radius: 6px;
-  font-size: 0.72rem;
+  border-radius: 8px;
+  font-size: 0.7rem;
   color: #94a3b8;
-  align-self: center;
 }
 
 .inspector-panel {

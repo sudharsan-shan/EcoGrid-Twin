@@ -1,0 +1,39 @@
+{
+  "model_architecture": "MLP (64-64-32 Swish) with Physics-Informed Collocation",
+  "seed": 42,
+  "epochs": 35,
+  "train_samples": 5049,
+  "val_samples": 614,
+  "test_in_samples": 1489,
+  "test_extrapolation_samples": 815,
+  "artifacts": {
+    "model_path": "models/pinn_model.keras",
+    "training_dataset": "dataset/battery_sim_trajectories.csv",
+    "ablation_figure": "output_figures/fig_pinn_ablation.png"
+  },
+  "pinn_results": {
+    "in_distribution": {
+      "soc_mae": 0.1092,
+      "temp_mae": 1.1743,
+      "mean_physics_residual": 0.2583
+    },
+    "extrapolation_test": {
+      "soc_mae": 0.2582,
+      "temp_mae": 1.1782,
+      "mean_physics_residual": 0.737
+    }
+  },
+  "plain_mlp_ablation_results": {
+    "in_distribution": {
+      "soc_mae": 0.1287,
+      "temp_mae": 1.1656,
+      "mean_physics_residual": 0.2
+    },
+    "extrapolation_test": {
+      "soc_mae": 0.4219,
+      "temp_mae": 1.2867,
+      "mean_physics_residual": 0.6357
+    }
+  },
+  "phys_residual_reduction_extrapolation_pct": -15.94
+}

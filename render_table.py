@@ -61,6 +61,6 @@ for (row, col), cell in table.get_celld().items():
 
 plt.subplots_adjust(left=0.02, right=0.98, top=0.98, bottom=0.02)
 
-out_path = r"c:\Users\sudha\Downloads\EcoGrid-Twin\EcoGrid-Twin\proposed_setup_table.png"
+out_path = "proposed_setup_table.png"
 plt.savefig(out_path, dpi=300, bbox_inches="tight", pad_inches=0.1)
 print(f"Table saved to: {out_path}")
