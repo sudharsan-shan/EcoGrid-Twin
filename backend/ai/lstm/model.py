@@ -18,7 +18,13 @@ _nasa_climate_cache = None
 _interval_calibration_cache = None
 
 def get_nasa_climate_data():
-    """Load and cache NASA POWER climate observations from merged dataset."""
+    """Load and cache climate data from merged_dataset.csv.
+    
+    Note: merged_dataset.csv is a composite file blending simulated campus load
+    profiles with weather data (ERA5-Land / Open-Meteo reanalysis fields).
+    It is NOT a direct NASA POWER download; provenance is documented in
+    dataset/DATA_README.md.
+    """
     global _nasa_climate_cache
     if _nasa_climate_cache is None:
         path = os.path.join(Config.DATASET_DIR, "merged_dataset.csv")

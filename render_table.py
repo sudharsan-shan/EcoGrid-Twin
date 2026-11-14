@@ -10,7 +10,7 @@ data = [
     ["Dataset", "Synthetic campus microgrid dataset for 6 facilities\n(case study: IFET College of Engineering / Tamil Nadu Site)"],
     ["Dataset size", "8,760 hourly intervals (35,040 × 15-min dispatch intervals)\nacross 6 facilities = 52,560 facility-hour records"],
     ["Input data", "Simulated facility occupancy and electrical load, ERA5-Land & Open-Meteo\nhourly weather, 120 kWp rooftop solar model, 250 kWh / 60 kW BESS model"],
-    ["Meta-Twin / AI model", "Physics-Informed Neural Network (PINN) for battery health validation\n+ Bi-LSTM probabilistic forecaster + Tariff Dispatch Optimizer"],
+    ["Meta-Twin / AI model", "Physics-Informed Neural Network (PINN) for battery health validation\n+ Stacked LSTM Forecaster (calibrated prediction intervals) + Tariff Dispatch Optimizer"],
     ["Train / test split", "First 351 days train, final 14 days test (chronological), seed 42"],
     ["Evaluation metrics", "MAE, RMSE, MAPE (Solar: 6.78%, Load: 3.71%), R² (>0.95),\nPhysics Residual Confidence (99.7%)"],
     ["Scenarios simulated", "Baseline, heatwave (+3.5 °C HVAC surge), solar transient dip,\nexamination/load surge, Meta-Twin-guided optimal dispatch"]

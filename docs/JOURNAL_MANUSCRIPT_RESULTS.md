@@ -4,7 +4,7 @@
 
 ## 4. Proposed Setup and Experimental Methodology
 
-The proposed **EcoGrid-Twin** cyber-physical framework is designed for industrial and educational campus microgrids operating under the Tamil Nadu Generation and Distribution Corporation (TANGEDCO / TNPDCL) tariff structures. The platform integrates real-time hardware telemetry (RS485 Modbus RTU), physics-guided battery state estimation, probabilistic Bi-LSTM neural forecasting, and continuous rule-based/lookahead optimal dispatch.
+The proposed **EcoGrid-Twin** cyber-physical framework is designed for industrial and educational campus microgrids operating under the Tamil Nadu Generation and Distribution Corporation (TANGEDCO / TNPDCL) tariff structures. The platform integrates real-time hardware telemetry (RS485 Modbus RTU), physics-guided battery state estimation, Stacked LSTM neural forecasting with calibrated prediction intervals, and continuous rule-based/lookahead optimal dispatch.
 
 ### Table 1: Experimental Setup and Simulation Benchmark Parameters
 
@@ -98,6 +98,7 @@ The intelligence layer utilizes a stacked sequence-to-sequence Long Short-Term M
   - Weighted Absolute Percentage Error ($\text{WAPE}$): **$13.25\%$**
   - Forecast Skill Score vs. Persistence: **$+30.61\%$** ($\text{Skill} = 0.3061$)
   - Empirical Prediction Interval Coverage ($\text{PICP}_{10-90}$): **$76.65\%$** (Target: $80.0\%$, MPIW: $5.78\,\text{kW}$)
+  - **Comparative Baseline Analysis**: The Stacked LSTM forecaster achieves a $30.61\%$ skill score improvement over naive persistence. Linear Ridge regression performs competitively on solar ($4.59\,\text{kW}$ vs. $4.76\,\text{kW}$) because the clear-sky diurnal solar trajectory is predominantly harmonic and linear-friendly.
 
 - **Building Electrical Load Forecasting (Held-Out Test Set)**:
   - Mean Absolute Error ($\text{MAE}$): **$5.46\,\text{kW}$**
@@ -106,6 +107,7 @@ The intelligence layer utilizes a stacked sequence-to-sequence Long Short-Term M
   - Weighted Absolute Percentage Error ($\text{WAPE}$): **$5.76\%$**
   - Forecast Skill Score vs. Persistence: **$+61.98\%$** ($\text{Skill} = 0.6198$)
   - Empirical Prediction Interval Coverage ($\text{PICP}_{10-90}$): **$79.24\%$** (Target: $80.0\%$, MPIW: $14.82\,\text{kW}$)
+  - **Nonlinear Superiority on Complex Load**: On multi-zone commercial load profiles exhibiting thermal HVAC inertia and stochastic dual-peak occupancy, the Stacked LSTM reduces RMSE by **$25.96\%$** relative to Ridge regression ($7.64\,\text{kW}$ vs. $10.32\,\text{kW}$) and **$61.98\%$** relative to persistence.
 
 The empirical residual quantiles provide calibrated physical bounds without relying on uncalibrated heuristic scaling multipliers, offering defensible bounds for lookahead dispatch optimization.
 
@@ -121,14 +123,19 @@ $$\mathcal{L}_\text{physics} = \mathbb{E}\left[ \left| (\text{SoC}_{t+1} - \text
 
 Physics losses are enforced over empirical trajectory transitions and collocation points sampled across the entire state domain.
 
-- **Ablation Comparison (PINN vs. Plain MLP without physics loss)**:
+- **Ablation & Baseline Evaluation (Trained on Applied Power `actual_power_kw`)**:
+  - **Ground-Truth Physical Baseline**: Evaluated with applied power against ground-truth transitions, the reference residual is **$0.000204\%$** (in-distribution) and **$0.000102\%$** (extrapolation), confirming that clipping-induced power discrepancy has been eliminated.
   - **In-Distribution Test Performance ($|P| \le 40\,\text{kW}$)**:
-    - PINN: $\text{SoC MAE} = \mathbf{0.1092\%}$, Mean Physics Residual $= \mathbf{0.2583\%}$
-    - Plain MLP: $\text{SoC MAE} = 0.1287\%$, Mean Physics Residual $= 0.2000\%$
+    - PINN ($\lambda_\text{phys} = 0.1$): $\text{SoC MAE} = \mathbf{0.1403\%}$, Mean Physics Residual $= \mathbf{0.1403\%}$
+    - Plain MLP ($\lambda_\text{phys} = 0$): $\text{SoC MAE} = 0.0347\%$, Mean Physics Residual $= 0.0347\%$
   - **Out-of-Distribution Extrapolation Performance ($|P| > 40\,\text{kW}$ up to $60\,\text{kW}$)**:
-    - PINN: $\text{SoC MAE} = \mathbf{0.2582\%}$, Mean Physics Residual $= 0.7370\%$
-    - Plain MLP: $\text{SoC MAE} = 0.4219\%$, Mean Physics Residual $= 0.6357\%$
-    - **Physical generalizability**: Enforcing physics conservation reduces extrapolation prediction error by **$38.8\%$** on unseen high-power operating regimes.
+    - PINN ($\lambda_\text{phys} = 0.1$): $\text{SoC MAE} = \mathbf{0.2948\%}$, Mean Physics Residual $= 0.2948\%$
+    - Plain MLP ($\lambda_\text{phys} = 0$): $\text{SoC MAE} = 0.1894\%$, Mean Physics Residual $= 0.1894\%$
+  - **Hyperparameter $\lambda_\text{phys}$ Regularization Sweep**:
+    - $\lambda_\text{phys} = 0.1$: In-distribution MAE $0.1403\%$, Extrapolation MAE $0.2948\%$ (optimal trade-off)
+    - $\lambda_\text{phys} = 1.0$: In-distribution MAE $0.1238\%$, Extrapolation MAE $0.3391\%$
+    - $\lambda_\text{phys} = 10.0$: In-distribution MAE $0.1460\%$, Extrapolation MAE $0.4469\%$
+    - *Observation*: Because training data is generated directly from analytical Thevenin ODEs, pure data-driven regression without boundary regularization fits the smooth trajectory closely. The PINN physics penalty acts as a conservative regularizer over unvisited collocation boundaries.
 - **Physical Confidence Metric**: Over $97.9\%$ of operational steps maintain physics confidence $> 0.95$, with zero persistent anomalies ($\mathcal{R} > 0.50$).
 - **Surrogate Architecture**: 64-64-32 Swish MLP evaluated via `BatteryPINN.estimate_state(...)` returning explicit `"method": "trained_pinn"`.
 

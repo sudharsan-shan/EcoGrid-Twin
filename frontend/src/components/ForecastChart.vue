@@ -4,7 +4,7 @@
       <div>
         <div class="title-row">
           <h3 class="forecast-title">24-Hour Probabilistic Solar & Load AI Forecast</h3>
-          <span class="badge badge-weather">Bi-LSTM Quantile Model</span>
+          <span class="badge badge-weather">Stacked LSTM Forecaster (calibrated intervals)</span>
         </div>
         <span class="forecast-sub">Forecast for {{ store.config.city }}, TN ({{ store.config.site_name }}) — <em>Advisory & Dispatch Planning</em></span>
       </div>

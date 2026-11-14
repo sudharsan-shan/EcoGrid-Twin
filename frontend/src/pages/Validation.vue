@@ -138,7 +138,7 @@
       <div class="glass-card table-card">
         <div class="card-top">
           <span class="table-num">Table 6</span>
-          <h4 class="table-title">Bi-LSTM Quantile Forecast Accuracy</h4>
+          <h4 class="table-title">Stacked LSTM Forecaster Accuracy</h4>
         </div>
         <table class="val-table">
           <thead>

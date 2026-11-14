@@ -1,0 +1,38 @@
+{
+  "0.1": {
+    "in_distribution": {
+      "soc_mae": 0.1403,
+      "temp_mae": 1.1779,
+      "mean_physics_residual": 0.1403
+    },
+    "extrapolation": {
+      "soc_mae": 0.2948,
+      "temp_mae": 1.2762,
+      "mean_physics_residual": 0.2948
+    }
+  },
+  "1.0": {
+    "in_distribution": {
+      "soc_mae": 0.1238,
+      "temp_mae": 1.2057,
+      "mean_physics_residual": 0.1238
+    },
+    "extrapolation": {
+      "soc_mae": 0.3391,
+      "temp_mae": 1.1598,
+      "mean_physics_residual": 0.3391
+    }
+  },
+  "10.0": {
+    "in_distribution": {
+      "soc_mae": 0.146,
+      "temp_mae": 1.2355,
+      "mean_physics_residual": 0.146
+    },
+    "extrapolation": {
+      "soc_mae": 0.4469,
+      "temp_mae": 1.3755,
+      "mean_physics_residual": 0.4469
+    }
+  }
+}

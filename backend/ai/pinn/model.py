@@ -59,6 +59,21 @@ class BatteryPINN:
         """
         Estimate next SoC, temperature, and physical consistency score.
         Signature is preserved for full backwards-compatibility.
+
+        Parameters
+        ----------
+        current_soc : float
+            Current battery state of charge in percent [0–100].
+        target_power_kw : float
+            The APPLIED (actual/clipped) power in kW — i.e. the power the battery
+            physically handled after SOC and power-limit clipping, NOT the commanded
+            (requested) power. When calling from the dispatcher, pass the value returned
+            by battery.step() as `actual_power_kw`, not the raw dispatch command.
+            Positive = discharge, negative = charge.
+        dt_hours : float
+            Time step duration in hours.
+        ambient_temp : float
+            Ambient temperature in degrees Celsius.
         """
         model = _get_pinn_model()
 

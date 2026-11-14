@@ -1,6 +1,12 @@
 """
 Physics-Informed Neural Network (PINN) architecture for Battery State Estimation.
-Keras MLP predicting next SOC and temperature from (soc, power_kw, ambient_temp, dt_hours).
+Keras MLP predicting next SOC and temperature from (soc, actual_power_kw, ambient_temp, dt_hours).
+
+Input column 1 is actual_power_kw — the power ACTUALLY applied to the battery after SOC/power
+limit clipping by the simulator, NOT the commanded (requested) power. Using applied power ensures
+the physics residual correctly captures energy balance rather than penalising physically correct
+clipping behaviour.
+
 Enforces differential electrochemical energy balance and SOC boundary constraints.
 """
 
@@ -40,7 +46,7 @@ class BatteryPINNNet(keras.Model):
     def call(self, inputs, training=False):
         """
         inputs: tensor of shape (batch, 4) with columns:
-        [soc_prev, power_kw, ambient_temp_c, dt_hours]
+        [soc_prev, actual_power_kw (applied power after clipping), ambient_temp_c, dt_hours]
         """
         # Normalization layer
         soc_norm = (inputs[:, 0:1] - 50.0) / 50.0
@@ -69,6 +75,9 @@ class BatteryPINNNet(keras.Model):
         """
         Computes energy conservation residual:
         (soc_next - soc_prev) - Delta_SoC_physics
+
+        inputs column 1 is actual_power_kw (applied power after clipping).
+        Using applied power ensures the residual is near zero for physically consistent data.
         """
         soc_prev = inputs[:, 0:1]
         power_kw = inputs[:, 1:2]

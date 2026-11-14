@@ -1,4 +1,4 @@
-﻿import pulp
+import pulp
 from typing import List, Dict, Any, Tuple
 from backend.config import Config
 
@@ -51,12 +51,12 @@ class RollingHorizonMPC:
         prob = pulp.LpProblem("RollingHorizonMPC", pulp.LpMinimize)
 
         # Decision Variables
-        charge = [pulp.LpVariable(f"charge_{i}", lowBound=0.0, upBound=self.max_power_kw) for i in range(N)]
-        discharge = [pulp.LpVariable(f"discharge_{i}", lowBound=0.0, upBound=self.max_power_kw) for i in range(N)]
-        unmet = [pulp.LpVariable(f"unmet_{i}", lowBound=0.0) for i in range(N)]
-        curtail = [pulp.LpVariable(f"curtail_{i}", lowBound=0.0) for i in range(N)]
-        grid_draw = [pulp.LpVariable(f"grid_draw_{i}", lowBound=0.0) for i in range(N)]
-        soc = [pulp.LpVariable(f"soc_{i}", lowBound=self.min_soc, upBound=self.max_soc) for i in range(N + 1)]
+        charge = [pulp.LpVariable(f"charge_{i}", 0.0, self.max_power_kw) for i in range(N)]
+        discharge = [pulp.LpVariable(f"discharge_{i}", 0.0, self.max_power_kw) for i in range(N)]
+        unmet = [pulp.LpVariable(f"unmet_{i}", 0.0) for i in range(N)]
+        curtail = [pulp.LpVariable(f"curtail_{i}", 0.0) for i in range(N)]
+        grid_draw = [pulp.LpVariable(f"grid_draw_{i}", 0.0) for i in range(N)]
+        soc = [pulp.LpVariable(f"soc_{i}", self.min_soc, self.max_soc) for i in range(N + 1)]
 
         # Objective Function
         obj_terms = []
