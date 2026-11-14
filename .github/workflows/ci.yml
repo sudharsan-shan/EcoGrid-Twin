@@ -26,8 +26,9 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run Python Unit & Invariant Tests
-        run: |
-          pytest tests
+        run: python -m pytest tests
+        env:
+          PYTHONPATH: ${{ github.workspace }}
 
       - name: Set up Node.js 20
         uses: actions/setup-node@v4
