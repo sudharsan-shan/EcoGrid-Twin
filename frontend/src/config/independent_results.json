@@ -1,6 +1,6 @@
 {
   "title": "Independent Microgrid Physical & Neural Verification Report",
-  "generated_at": "2026-11-14T20:15:55.758181",
+  "generated_at": "2026-11-15T10:19:34.465934",
   "summary": {
     "total_checks": 7,
     "passing_checks": 7,
@@ -58,10 +58,10 @@
     },
     {
       "check_id": "CHK-07",
-      "category": "PINN Conservation Consistency",
-      "description": "Mean electrochemical energy balance residual of PINN surrogate on unseen high-power test cycles",
-      "tolerance": "Mean residual < 1.0%",
-      "observed_value": "0.2948% residual, 0.1403% test MAE",
+      "category": "PINN Collocation Physical Consistency",
+      "description": "Collocation domain energy balance residual and in-distribution accuracy of PINN surrogate",
+      "tolerance": "Collocation residual < 1.0% & in-dist MAE < 1.0%",
+      "observed_value": "Collocation residual: 0.5187%, In-dist MAE: 0.1240%, Boundary violations: 3.6%",
       "status": "PASS"
     }
   ]

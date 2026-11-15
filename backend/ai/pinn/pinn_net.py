@@ -1,13 +1,12 @@
 """
 Physics-Informed Neural Network (PINN) architecture for Battery State Estimation.
-Keras MLP predicting next SOC and temperature from (soc, actual_power_kw, ambient_temp, dt_hours).
+Keras MLP predicting next SOC and cell temperature from:
+(soc_prev, temp_prev, actual_power_kw, ambient_temp_c, dt_hours).
 
-Input column 1 is actual_power_kw — the power ACTUALLY applied to the battery after SOC/power
-limit clipping by the simulator, NOT the commanded (requested) power. Using applied power ensures
-the physics residual correctly captures energy balance rather than penalising physically correct
-clipping behaviour.
-
-Enforces differential electrochemical energy balance and SOC boundary constraints.
+Enforces:
+1. Electrochemical energy conservation (Coulombic efficiency).
+2. Lumped thermal dynamics (Joule heating + Newton convective cooling).
+3. Safe operational boundary limits [15%, 95%] on state of charge.
 """
 
 import tensorflow as tf
@@ -18,7 +17,8 @@ from backend.config import Config
 class BatteryPINNNet(keras.Model):
     """
     MLP that estimates next State of Charge (SoC) and cell temperature.
-    Includes physics loss methods for energy balance and operational bounds.
+    Includes physics loss methods for electrochemical conservation, thermal dynamics,
+    and operational boundaries.
     """
     def __init__(
         self,
@@ -36,26 +36,47 @@ class BatteryPINNNet(keras.Model):
         self.min_soc = float(min_soc)
         self.max_soc = float(max_soc)
 
-        # Multi-layer perceptron with softplus / swish activations for smooth gradients
+        # Multi-layer perceptron with Swish activations for smooth physical gradients
         self.dense1 = layers.Dense(64, activation="swish", name="dense_1")
         self.dense2 = layers.Dense(64, activation="swish", name="dense_2")
         self.dense3 = layers.Dense(32, activation="swish", name="dense_3")
         # Output 2 values: delta_soc and delta_temp
         self.head = layers.Dense(2, activation="linear", name="output_deltas")
 
+    def _normalize_inputs(self, inputs):
+        """Handle 5-feature inputs (or 4-feature legacy inputs with temp_prev = ambient)."""
+        shape = tf.shape(inputs)
+        if shape[1] == 4:
+            # Legacy [soc_prev, actual_power_kw, ambient_temp_c, dt_hours]
+            soc_prev = inputs[:, 0:1]
+            temp_prev = inputs[:, 2:3]  # use ambient as fallback
+            pwr = inputs[:, 1:2]
+            amb = inputs[:, 2:3]
+            dt = inputs[:, 3:4]
+        else:
+            # 5-feature [soc_prev, temp_prev, actual_power_kw, ambient_temp_c, dt_hours]
+            soc_prev = inputs[:, 0:1]
+            temp_prev = inputs[:, 1:2]
+            pwr = inputs[:, 2:3]
+            amb = inputs[:, 3:4]
+            dt = inputs[:, 4:5]
+
+        soc_norm = (soc_prev - 50.0) / 50.0
+        temp_norm = (temp_prev - 25.0) / 25.0
+        pwr_norm = pwr / 60.0
+        amb_norm = (amb - 25.0) / 25.0
+        dt_norm = (dt - 0.25) / 0.5
+        norm_x = tf.concat([soc_norm, temp_norm, pwr_norm, amb_norm, dt_norm], axis=-1)
+        return norm_x, soc_prev, temp_prev, pwr, amb, dt
+
     def call(self, inputs, training=False):
         """
-        inputs: tensor of shape (batch, 4) with columns:
-        [soc_prev, actual_power_kw (applied power after clipping), ambient_temp_c, dt_hours]
+        inputs: tensor of shape (batch, 5) with columns:
+        [soc_prev, temp_prev, actual_power_kw, ambient_temp_c, dt_hours]
         """
-        # Normalization layer
-        soc_norm = (inputs[:, 0:1] - 50.0) / 50.0
-        pwr_norm = inputs[:, 1:2] / 60.0
-        amb_norm = (inputs[:, 2:3] - 25.0) / 25.0
-        dt_norm  = (inputs[:, 3:4] - 0.25) / 0.5
-        x = tf.concat([soc_norm, pwr_norm, amb_norm, dt_norm], axis=-1)
+        norm_x, soc_prev, temp_prev, _, _, _ = self._normalize_inputs(inputs)
 
-        x = self.dense1(x)
+        x = self.dense1(norm_x)
         x = self.dense2(x)
         x = self.dense3(x)
         deltas = self.head(x)
@@ -64,45 +85,59 @@ class BatteryPINNNet(keras.Model):
         delta_temp = deltas[:, 1:2]
 
         # Predicted next states = prev + delta
-        soc_next = inputs[:, 0:1] + delta_soc
-        # Clip predicted SOC to physical range [0, 100]
-        soc_next = tf.clip_by_value(soc_next, 0.0, 100.0)
-        temp_next = inputs[:, 2:3] + delta_temp
+        soc_next = tf.clip_by_value(soc_prev + delta_soc, 0.0, 100.0)
+        temp_next = temp_prev + delta_temp
 
         return tf.concat([soc_next, temp_next], axis=-1)
 
-    def compute_physics_residual(self, inputs, preds):
+    def compute_soc_physics_residual(self, inputs, preds):
         """
-        Computes energy conservation residual:
+        Computes electrochemical energy conservation residual:
         (soc_next - soc_prev) - Delta_SoC_physics
-
-        inputs column 1 is actual_power_kw (applied power after clipping).
-        Using applied power ensures the residual is near zero for physically consistent data.
         """
-        soc_prev = inputs[:, 0:1]
-        power_kw = inputs[:, 1:2]
-        dt_hours = inputs[:, 3:4]
+        _, soc_prev, _, power_kw, _, dt_hours = self._normalize_inputs(inputs)
         soc_next = preds[:, 0:1]
 
-        # Discharge (power > 0): effective power = power / one_way_eff
-        # Charge (power < 0): effective power = power * one_way_eff
+        # Discharge (power > 0): eff_pwr = power / one_way_eff
+        # Charge (power < 0): eff_pwr = power * one_way_eff
         effective_power = tf.where(
             power_kw > 0.0,
             power_kw / self.one_way_eff,
             power_kw * self.one_way_eff
         )
         expected_delta = -(effective_power * dt_hours / self.capacity_kwh) * 100.0
-        # Target SOC without boundary violation
         expected_soc = tf.clip_by_value(soc_prev + expected_delta, self.min_soc, self.max_soc)
 
-        # L1/L2 residual
         residual = tf.reduce_mean(tf.square(soc_next - expected_soc))
         return residual
 
+    def compute_thermal_physics_residual(self, inputs, preds):
+        """
+        Computes lumped thermal dynamics residual:
+        heating = (|power_kw| / capacity_kwh) * 3.5
+        cooling = 0.15 * (temp_prev - ambient_temp)
+        expected_delta = (heating - cooling) * (dt_hours * 4.0)
+        """
+        _, _, temp_prev, power_kw, ambient_temp, dt_hours = self._normalize_inputs(inputs)
+        temp_next = preds[:, 1:2]
+
+        current_c_rate = tf.abs(power_kw) / self.capacity_kwh
+        heating = current_c_rate * 3.5
+        cooling = 0.15 * (temp_prev - ambient_temp)
+        expected_delta = (heating - cooling) * (dt_hours * 4.0)
+        expected_temp = tf.clip_by_value(temp_prev + expected_delta, 10.0, 65.0)
+
+        residual = tf.reduce_mean(tf.square(temp_next - expected_temp))
+        return residual
+
+    def compute_physics_residual(self, inputs, preds):
+        """Total physics residual combining electrochemical and thermal residuals."""
+        res_soc = self.compute_soc_physics_residual(inputs, preds)
+        res_thermal = self.compute_thermal_physics_residual(inputs, preds)
+        return 0.5 * res_soc + 0.5 * res_thermal
+
     def compute_boundary_penalty(self, preds):
-        """
-        Penalizes SOC excursions outside safe operating bounds [15%, 95%].
-        """
+        """Penalizes SOC excursions outside safe operating bounds [15%, 95%]."""
         soc_next = preds[:, 0:1]
         under_penalty = tf.square(tf.maximum(0.0, self.min_soc - soc_next))
         over_penalty = tf.square(tf.maximum(0.0, soc_next - self.max_soc))
@@ -110,8 +145,6 @@ class BatteryPINNNet(keras.Model):
 
 def create_pinn_model() -> BatteryPINNNet:
     model = BatteryPINNNet()
-    # Build model by passing a dummy tensor
-    dummy_input = tf.zeros((1, 4), dtype=tf.float32)
+    dummy_input = tf.zeros((1, 5), dtype=tf.float32)
     _ = model(dummy_input)
     return model
-

@@ -3,8 +3,6 @@ Physical conservation laws and boundary constraints for Physics-Informed Neural 
 Enforces physical thermodynamics and electrochemical limits on battery state updates.
 """
 
-import numpy as np
-
 def physics_soc_residual(soc_prev: float, soc_next: float, power_kw: float, dt_hours: float, capacity_kwh: float, efficiency: float) -> float:
     """
     Computes energy balance residual:
@@ -27,3 +25,26 @@ def boundary_penalty(soc: float, min_soc: float = 15.0, max_soc: float = 95.0) -
     if soc > max_soc:
         penalty += (soc - max_soc) ** 2
     return penalty
+
+def physics_temp_residual(
+    temp_prev: float,
+    temp_next: float,
+    power_kw: float,
+    ambient_temp: float,
+    dt_hours: float,
+    capacity_kwh: float = 250.0
+) -> float:
+    """
+    Computes lumped thermal dynamic residual:
+    heating = (|power_kw| / capacity_kwh) * 3.5
+    cooling = 0.15 * (temp_prev - ambient_temp)
+    expected_delta = (heating - cooling) * (dt_hours * 4.0)
+    expected_temp = max(10.0, min(65.0, temp_prev + expected_delta))
+    """
+    c_rate = abs(power_kw) / max(1.0, capacity_kwh)
+    heating = c_rate * 3.5
+    cooling = 0.15 * (temp_prev - ambient_temp)
+    expected_delta = (heating - cooling) * (dt_hours * 4.0)
+    expected_temp = max(10.0, min(65.0, temp_prev + expected_delta))
+    return abs(temp_next - expected_temp)
+

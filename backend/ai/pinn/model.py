@@ -5,7 +5,7 @@ Surrogate neural model predicting electrochemical battery state transitions with
 
 import os
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import numpy as np
 
 from backend.ai.pinn.constraints import physics_soc_residual, boundary_penalty
@@ -19,30 +19,43 @@ def _get_pinn_model():
     if _PINN_MODEL_CACHE is not None:
         return _PINN_MODEL_CACHE
 
+    weights_path = Path("models/pinn_model.weights.h5")
     model_path = Path("models/pinn_model.keras")
+
+    if not weights_path.exists():
+        candidate = Path(__file__).resolve().parents[3] / "models" / "pinn_model.weights.h5"
+        if candidate.exists():
+            weights_path = candidate
+
     if not model_path.exists():
-        # Check relative to backend/project root
         candidate = Path(__file__).resolve().parents[3] / "models" / "pinn_model.keras"
         if candidate.exists():
             model_path = candidate
 
-    if model_path.exists():
-        try:
+    try:
+        from backend.ai.pinn.pinn_net import create_pinn_model
+        model = create_pinn_model()
+        if weights_path.exists():
+            model.load_weights(str(weights_path))
+            _PINN_MODEL_CACHE = model
+            logger.info(f"Loaded trained Battery PINN weights from {weights_path}")
+            return _PINN_MODEL_CACHE
+        elif model_path.exists():
             import tensorflow as tf
             from backend.ai.pinn.pinn_net import BatteryPINNNet
-            # Load Keras model
-            _PINN_MODEL_CACHE = tf.keras.models.load_model(
+            loaded = tf.keras.models.load_model(
                 str(model_path),
                 custom_objects={"BatteryPINNNet": BatteryPINNNet},
                 compile=False
             )
-            logger.info(f"Loaded trained Battery PINN model from {model_path}")
-        except Exception as e:
-            logger.warning(f"Could not load trained PINN model from {model_path}: {e}. Using formula fallback.")
-            _PINN_MODEL_CACHE = False
-    else:
-        _PINN_MODEL_CACHE = False
+            if len(loaded.weights) > 0:
+                _PINN_MODEL_CACHE = loaded
+                logger.info(f"Loaded trained Battery PINN model from {model_path}")
+                return _PINN_MODEL_CACHE
+    except Exception as e:
+        logger.warning(f"Could not load PINN model: {e}. Falling back to formula.")
 
+    _PINN_MODEL_CACHE = False
     return _PINN_MODEL_CACHE
 
 class BatteryPINN:
@@ -55,7 +68,14 @@ class BatteryPINN:
         self.capacity_kwh = capacity_kwh
         self.efficiency = efficiency
 
-    def estimate_state(self, current_soc: float, target_power_kw: float, dt_hours: float, ambient_temp: float) -> Dict[str, Any]:
+    def estimate_state(
+        self,
+        current_soc: float,
+        target_power_kw: float,
+        dt_hours: float,
+        ambient_temp: float,
+        current_temp: Optional[float] = None
+    ) -> Dict[str, Any]:
         """
         Estimate next SoC, temperature, and physical consistency score.
         Signature is preserved for full backwards-compatibility.
@@ -74,15 +94,22 @@ class BatteryPINN:
             Time step duration in hours.
         ambient_temp : float
             Ambient temperature in degrees Celsius.
+        current_temp : Optional[float]
+            Current battery cell temperature in °C. If omitted, defaults to ambient_temp.
         """
         model = _get_pinn_model()
+        cell_temp = current_temp if current_temp is not None else ambient_temp
 
         if model is not False and model is not None:
             try:
                 import tensorflow as tf
-                inputs = np.array([[current_soc, target_power_kw, ambient_temp, dt_hours]], dtype=np.float32)
+                # 5 features: [soc_prev, temp_prev, actual_power_kw, ambient_temp_c, dt_hours]
+                inputs = np.array([[current_soc, cell_temp, target_power_kw, ambient_temp, dt_hours]], dtype=np.float32)
                 preds = model(tf.convert_to_tensor(inputs), training=False).numpy()[0]
-                projected_soc = float(np.clip(preds[0], 15.0, 95.0))
+                delta_soc = float(preds[0] - current_soc)
+                if self.capacity_kwh != Config.BATTERY_CAPACITY_KWH:
+                    delta_soc *= (Config.BATTERY_CAPACITY_KWH / max(1.0, self.capacity_kwh))
+                projected_soc = float(np.clip(current_soc + delta_soc, 15.0, 95.0))
                 internal_temp_estimate = float(preds[1])
                 method = "trained_pinn"
             except Exception as e:
@@ -97,7 +124,11 @@ class BatteryPINN:
                 delta_soc = -(target_power_kw * one_way_eff * dt_hours / self.capacity_kwh) * 100.0
 
             projected_soc = max(15.0, min(95.0, current_soc + delta_soc))
-            internal_temp_estimate = ambient_temp + abs(target_power_kw) * 0.08
+            c_rate = abs(target_power_kw) / max(1.0, self.capacity_kwh)
+            heating = c_rate * 3.5
+            cooling = 0.15 * (cell_temp - ambient_temp)
+            internal_temp_estimate = cell_temp + (heating - cooling) * (dt_hours * 4.0)
+            internal_temp_estimate = max(10.0, min(65.0, internal_temp_estimate))
             method = "physics_formula"
 
         residual = physics_soc_residual(current_soc, projected_soc, target_power_kw, dt_hours, self.capacity_kwh, self.efficiency)
