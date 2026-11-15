@@ -49,11 +49,17 @@ def extract_metrics(
             "scaling_summary": [
                 {
                     "fraction": s["fraction_label"],
-                    "samples": s["sample_count"],
-                    "pinn_in_soc_mae": s["pinn"]["in_distribution"]["soc_mae"],
-                    "mlp_in_soc_mae": s["plain_mlp"]["in_distribution"]["soc_mae"],
-                    "pinn_colloc_res": s["pinn"]["collocation"]["collocation_energy_balance_residual"],
-                    "mlp_colloc_res": s["plain_mlp"]["collocation"]["collocation_energy_balance_residual"]
+                    "samples": s.get("sample_count_mean", s.get("sample_count")),
+                    "pinn_in_soc_mae": s["pinn"]["in_distribution"].get("soc_mae_mean", s["pinn"]["in_distribution"].get("soc_mae")),
+                    "pinn_in_soc_std": s["pinn"]["in_distribution"].get("soc_mae_std", 0.0),
+                    "pinn_in_temp_mae": s["pinn"]["in_distribution"].get("temp_mae_mean", s["pinn"]["in_distribution"].get("temp_mae")),
+                    "pinn_in_temp_std": s["pinn"]["in_distribution"].get("temp_mae_std", 0.0),
+                    "mlp_in_soc_mae": s["plain_mlp"]["in_distribution"].get("soc_mae_mean", s["plain_mlp"]["in_distribution"].get("soc_mae")),
+                    "mlp_in_soc_std": s["plain_mlp"]["in_distribution"].get("soc_mae_std", 0.0),
+                    "mlp_in_temp_mae": s["plain_mlp"]["in_distribution"].get("temp_mae_mean", s["plain_mlp"]["in_distribution"].get("temp_mae")),
+                    "mlp_in_temp_std": s["plain_mlp"]["in_distribution"].get("temp_mae_std", 0.0),
+                    "pinn_colloc_res": s["pinn"]["collocation"].get("soc_residual_mean", s["pinn"]["collocation"].get("collocation_energy_balance_residual")),
+                    "mlp_colloc_res": s["plain_mlp"]["collocation"].get("soc_residual_mean", s["plain_mlp"]["collocation"].get("collocation_energy_balance_residual"))
                 }
                 for s in scaling
             ]
@@ -103,11 +109,13 @@ def print_markdown_table():
     print(f"| **Collocation Temp Residual** | 0.0000°C | {col['mlp_temp_residual']:.4f}°C | **{col['pinn_temp_residual']:.4f}°C** |")
     print(f"| **Collocation Boundary Violations** | 0.0% | {col['mlp_boundary_violations_pct']:.2f}% | **{col['pinn_boundary_violations_pct']:.2f}%** |")
 
-    print("\n### 📊 Data Scarcity Scaling Benchmark")
-    print("| Trajectory Fraction | Samples | Plain MLP SOC MAE | PINN SOC MAE | Collocation Residual (MLP vs PINN) |")
+    print("\n### 📊 Data Scarcity Scaling Benchmark (5-Seed Average ± Std)")
+    print("| Trajectory Fraction | Samples | Plain MLP SOC / Temp MAE | PINN SOC / Temp MAE | Collocation Residual (MLP vs PINN) |")
     print("| :---: | :---: | :---: | :---: | :---: |")
     for s in p.get("scaling_summary", []):
-        print(f"| {s['fraction']} | {s['samples']} | {s['mlp_in_soc_mae']:.4f}% | {s['pinn_in_soc_mae']:.4f}% | {s['mlp_colloc_res']:.4f}% vs {s['pinn_colloc_res']:.4f}% |")
+        mlp_str = f"{s['mlp_in_soc_mae']:.4f}±{s['mlp_in_soc_std']:.4f}% / {s['mlp_in_temp_mae']:.4f}±{s['mlp_in_temp_std']:.4f}°C"
+        pinn_str = f"{s['pinn_in_soc_mae']:.4f}±{s['pinn_in_soc_std']:.4f}% / {s['pinn_in_temp_mae']:.4f}±{s['pinn_in_temp_std']:.4f}°C"
+        print(f"| {s['fraction']} | {s['samples']} | {mlp_str} | {pinn_str} | {s['mlp_colloc_res']:.4f}% vs {s['pinn_colloc_res']:.4f}% |")
 
 if __name__ == "__main__":
     print_markdown_table()

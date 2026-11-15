@@ -125,19 +125,26 @@ $$\mathcal{L}_\text{thermal\_physics} = \mathbb{E}\left[ \left| (T_{t+1} - T_t) 
 
 - **Ablation & Benchmark Evaluation (Decoupled Collocation & Boundary Metrics)**:
   - **Analytical Formula Upper-Bound Reference**: The analytical Thevenin and lumped thermal equations achieve an in-distribution $\text{SoC MAE} = 0.0002\%$ and $\text{Temp MAE} = 0.0031^\circ\text{C}$ (extrapolation $\text{SoC MAE} = 0.0001\%$, $\text{Temp MAE} = 0.0031^\circ\text{C}$). The analytical validator serves as the primary deterministic safety guardrail.
-  - **In-Distribution Test Performance ($|P| \le 40\,\text{kW}$, 100% Data)**:
-    - PINN ($\lambda_\text{phys} = 10.0$): $\text{SoC MAE} = \mathbf{0.0955\%}$, $\text{Temp MAE} = \mathbf{0.0762^\circ\text{C}}$
-    - Plain MLP ($\lambda_\text{phys} = 0$): $\text{SoC MAE} = 0.0108\%$, $\text{Temp MAE} = 0.0357^\circ\text{C}$
+  - **In-Distribution Test Performance ($|P| \le 40\,\text{kW}$, 100% Data, Seed 42)**:
+    - PINN ($\lambda_\text{phys} = 10.0$): $\text{SoC MAE} = \mathbf{0.0955\%}$, $\text{Temp MAE} = 0.0762^\circ\text{C}$
+    - Plain MLP ($\lambda_\text{phys} = 0$): $\text{SoC MAE} = 0.0117\%$, $\text{Temp MAE} = 0.0348^\circ\text{C}$
   - **Out-of-Distribution Extrapolation Performance ($|P| > 40\,\text{kW}$ up to $60\,\text{kW}$)**:
-    - PINN ($\lambda_\text{phys} = 10.0$): $\text{SoC MAE} = 0.3851\%$, $\text{Temp MAE} = \mathbf{0.1456^\circ\text{C}}$ (vs. Plain MLP Temp MAE $0.2306^\circ\text{C}$, a **$36.9\%$ thermal error reduction**)
-    - Plain MLP ($\lambda_\text{phys} = 0$): $\text{SoC MAE} = 0.0960\%$, $\text{Temp MAE} = 0.2306^\circ\text{C}$
-  - **Domain-Wide Collocation Invariant Consistency (2,000 Unseen States Across Whole Domain)**:
-    - Collocation Energy Balance Residual: Plain MLP $= 1.3476\%$ vs. PINN $= \mathbf{0.6167\%}$ (**$54.2\%$ reduction in physical conservation violation**)
-    - Collocation Thermal Dynamics Residual: Plain MLP $= 0.9679^\circ\text{C}$ vs. PINN $= \mathbf{0.1925^\circ\text{C}}$ (**$80.1\%$ reduction in thermal law violation**)
-    - Boundary Violations ($<15\%$ or $>95\%$): Plain MLP $= 14.90\%$ vs. PINN $= \mathbf{12.45\%}$
-  - **Data-Scarcity Scaling Dynamics (1%, 5%, 10%, 100% Trajectories)**:
-    - At extreme data scarcity ($1\%$ training data, 83 samples), the PINN reduces test SOC MAE from $1.0597\%$ (Plain MLP) down to $\mathbf{0.3787\%}$ (**$64.3\%$ error reduction**) and collocation residual from $6.4375\%$ down to $4.1309\%$.
-    - Under dense data ($100\%$), pure unconstrained regression fits the smooth deterministic ODE trajectory closely on in-distribution points, but violates physical energy conservation and thermal laws on unvisited domain boundaries. Enforcing physics loss acts as a regularizer that guarantees physical plausibility and superior thermal tracking.
+    - PINN ($\lambda_\text{phys} = 10.0$): $\text{SoC MAE} = 0.3851\%$, $\text{Temp MAE} = \mathbf{0.1456^\circ\text{C}}$ (vs. Plain MLP Temp MAE $0.2560^\circ\text{C}$, a **$43.1\%$ thermal error reduction**)
+    - Plain MLP ($\lambda_\text{phys} = 0$): $\text{SoC MAE} = 0.1172\%$, $\text{Temp MAE} = 0.2560^\circ\text{C}$
+  - **Domain-Wide Collocation Invariant Consistency (2,000 Unseen States Across Whole 5D Domain)**:
+    - Collocation Energy Balance Residual: Plain MLP $= 1.3378\%$ vs. PINN $= \mathbf{0.6167\%}$ (**$53.9\%$ reduction in physical conservation violation**)
+    - Collocation Thermal Dynamics Residual: Plain MLP $= 1.0373^\circ\text{C}$ vs. PINN $= \mathbf{0.1925^\circ\text{C}}$ (**$81.4\%$ reduction in thermal law violation**)
+    - Boundary Violations ($<15\%$ or $>95\%$): Plain MLP $= 14.95\%$ vs. PINN $= \mathbf{12.45\%}$ (soft penalty restricts boundary excursions, though $12.45\%$ boundary violations remain on unvisited domain coordinates)
+  - **Data-Scarcity Scaling Dynamics (5-Seed Benchmark: Seeds [42, 43, 44, 45, 46], $\lambda_\text{phys}=1.0$)**:
+
+| Training Data Fraction | Samples | Plain MLP SOC MAE (%) | Plain MLP Temp MAE (°C) | PINN SOC MAE (%) | PINN Temp MAE (°C) | Collocation SOC Residual (MLP vs. PINN) |
+| :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **1% (1 trajectory)** | 55 | $0.8278 \pm 0.2902$ | $0.3229 \pm 0.0667$ | $0.9396 \pm 0.1817$ | $0.4001 \pm 0.1069$ | $5.8629\%$ vs. $6.0238\%$ |
+| **5% (4 trajectories)** | 262 | $0.1470 \pm 0.0654$ | $0.2623 \pm 0.0325$ | $0.5725 \pm 0.1988$ | $0.4820 \pm 0.2402$ | $4.1255\%$ vs. $\mathbf{3.1661\%}$ |
+| **10% (8 trajectories)** | 518 | $0.1263 \pm 0.0385$ | $0.2361 \pm 0.0114$ | $0.3485 \pm 0.0535$ | $\mathbf{0.1294 \pm 0.0224}$ | $3.4037\%$ vs. $\mathbf{1.5988\%}$ |
+| **100% (84 trajectories)** | 5306 | $0.0113 \pm 0.0012$ | $0.0350 \pm 0.0007$ | $0.1539 \pm 0.0266$ | $0.0635 \pm 0.0075$ | $1.3911\%$ vs. $\mathbf{0.7481\%}$ |
+
+  - *Empirical Takeaway*: At extreme data scarcity ($1\%$), the performance difference between models lies within the cross-seed variance spread, demonstrating that neither model reliably outperforms without sufficient trajectory coverage. In data-rich regimes ($5\%$ to $100\%$), the unconstrained Plain MLP fits in-distribution point trajectories closer because the synthetic dataset is generated from smooth deterministic ODEs; the PINN's primary advantage is acting as a regularizer that lowers domain-wide energy balance violations by $53.9\%$ and thermal law violations by $81.4\%$ across unvisited collocation states.
 - **Physical Confidence Metric**: Over $97.9\%$ of operational steps maintain physics confidence $> 0.95$, with zero persistent anomalies ($\mathcal{R} > 0.50$).
 - **Surrogate Architecture**: 64-64-32 Swish MLP evaluated via `BatteryPINN.estimate_state(...)` returning explicit `"method": "trained_pinn"`.
 

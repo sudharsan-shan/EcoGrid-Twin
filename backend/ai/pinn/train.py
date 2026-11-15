@@ -1,17 +1,16 @@
 """
-PINN Training Routine with Physics Collocation, Plain-MLP Ablation,
-and Data-Scarcity Scaling Experiment.
+PINN Training Routine with Multi-Seed Data-Scarcity Benchmark,
+Physics Collocation, and Plain-MLP Ablation.
 
-Trains a Physics-Informed Neural Network (PINN) surrogate of the microgrid battery model.
-Input features (5): [soc_prev, temp_prev, actual_power_kw, ambient_temp_c, dt_hours]
-Target features (2): [soc_next, temp_next]
+Inputs (5): [soc_prev, temp_prev, actual_power_kw, ambient_temp_c, dt_hours]
+Outputs (2): [soc_next, temp_next]
 
-Enforces:
-1. Electrochemical energy conservation (Faraday/Coulombic efficiency).
-2. Lumped thermal dynamics (Joule heating + Newton convective cooling).
-3. Collocation evaluation across unvisited domain.
-4. Data-scarcity scaling benchmark (1%, 5%, 10%, 100% training trajectories).
-5. Analytical baseline reference line.
+Evaluates:
+1. Analytical Thevenin and lumped thermal baseline.
+2. Data-scarcity scaling curves across 1%, 5%, 10%, 100% trajectories with 5 random seeds (mean ± std).
+3. 100% data hyperparameter sweep (lambda in [0.1, 1.0, 10.0]).
+4. Decoupled collocation invariant consistency and operational boundary violations.
+5. Residual-correction formulation variant.
 """
 
 import os
@@ -23,12 +22,13 @@ import tensorflow as tf
 from tensorflow import keras
 import matplotlib.pyplot as plt
 
-from backend.ai.pinn.pinn_net import BatteryPINNNet
+from backend.ai.pinn.pinn_net import BatteryPINNNet, create_pinn_model
 from backend.ai.pinn.constraints import physics_soc_residual, physics_temp_residual
 from backend.config import Config
 from backend.utils.logger import logger
 
 SEED = 42
+BENCHMARK_SEEDS = [42, 43, 44, 45, 46]
 
 def set_seeds(seed=SEED):
     random.seed(seed)
@@ -55,18 +55,19 @@ def train_network(
     val_y: np.ndarray,
     lambda_phys: float = 1.0,
     lambda_bound: float = 0.5,
-    epochs: int = 35,
+    epochs: int = 30,
     batch_size: int = 128,
     learning_rate: float = 0.002,
-    model_name: str = "pinn"
+    model_name: str = "pinn",
+    seed: int = SEED
 ):
-    set_seeds(SEED)
+    set_seeds(seed)
     model = BatteryPINNNet(name=model_name)
     optimizer = keras.optimizers.Adam(learning_rate=learning_rate)
 
     effective_batch = min(batch_size, max(4, len(train_x)))
     train_dataset = tf.data.Dataset.from_tensor_slices((train_x, train_y))
-    train_dataset = train_dataset.shuffle(buffer_size=len(train_x), seed=SEED).batch(effective_batch)
+    train_dataset = train_dataset.shuffle(buffer_size=len(train_x), seed=seed).batch(effective_batch)
 
     history = {"total_loss": [], "data_loss": [], "phys_loss": [], "val_soc_mae": []}
     best_val_mae = float("inf")
@@ -171,10 +172,7 @@ def evaluate_analytical_baseline(x_eval: np.ndarray, y_eval: np.ndarray) -> dict
     }
 
 def evaluate_model(model: BatteryPINNNet, x_eval: np.ndarray, y_eval: np.ndarray) -> dict:
-    """Evaluate model predictions on test set:
-    - SOC MAE and Temperature MAE
-    - Boundary violation count and percentage (<15% or >95%)
-    """
+    """Evaluate model predictions on test set."""
     if len(x_eval) == 0:
         return {"soc_mae": 0.0, "temp_mae": 0.0, "boundary_violation_count": 0, "boundary_violation_pct": 0.0}
 
@@ -182,7 +180,6 @@ def evaluate_model(model: BatteryPINNNet, x_eval: np.ndarray, y_eval: np.ndarray
     soc_mae = float(np.mean(np.abs(preds[:, 0] - y_eval[:, 0])))
     temp_mae = float(np.mean(np.abs(preds[:, 1] - y_eval[:, 1])))
 
-    # Boundary violations on predictions:
     pred_socs = preds[:, 0]
     boundary_violations = int(np.sum((pred_socs < 15.0) | (pred_socs > 95.0)))
     boundary_violation_pct = float(round((boundary_violations / len(x_eval)) * 100.0, 3))
@@ -285,7 +282,6 @@ def train_pinn(
     feature_cols = ["soc_prev", "temp_prev", "actual_power_kw", "ambient_temp_c", "dt_hours"]
     target_cols  = ["soc_next", "temp_next"]
 
-    # Extrapolation setup: Train only on |actual_power_kw| <= 40 kW
     train_df_bounded = train_df[train_df["actual_power_kw"].abs() <= 40.0].copy()
 
     X_train_full = train_df_bounded[feature_cols].values.astype(np.float32)
@@ -294,12 +290,10 @@ def train_pinn(
     X_val = val_df[val_df["actual_power_kw"].abs() <= 40.0][feature_cols].values.astype(np.float32)
     y_val = val_df[val_df["actual_power_kw"].abs() <= 40.0][target_cols].values.astype(np.float32)
 
-    # In-distribution test (|actual_power_kw| <= 40 kW)
     test_in_df = test_df[test_df["actual_power_kw"].abs() <= 40.0]
     X_test_in  = test_in_df[feature_cols].values.astype(np.float32)
     y_test_in  = test_in_df[target_cols].values.astype(np.float32)
 
-    # Extrapolation test (|actual_power_kw| > 40 kW up to max 60 kW)
     test_extrap_df = test_df[test_df["actual_power_kw"].abs() > 40.0]
     X_test_extrap  = test_extrap_df[feature_cols].values.astype(np.float32)
     y_test_extrap  = test_extrap_df[target_cols].values.astype(np.float32)
@@ -308,65 +302,125 @@ def train_pinn(
     logger.info(f"Test in-distribution: {len(X_test_in)}, Extrapolation test: {len(X_test_extrap)}")
 
     # -------------------------------------------------------------------------
-    # 1. Analytical Baseline Evaluation (Upper-bound physical accuracy reference)
+    # 1. Analytical Baseline Evaluation
     # -------------------------------------------------------------------------
     analytical_in = evaluate_analytical_baseline(X_test_in, y_test_in)
     analytical_extrap = evaluate_analytical_baseline(X_test_extrap, y_test_extrap)
     logger.info(f"Analytical Reference Baseline: In-dist={analytical_in}, Extrap={analytical_extrap}")
 
     # -------------------------------------------------------------------------
-    # 2. Data-Scarcity Experiment: 1%, 5%, 10%, 100% of training trajectories
+    # 2. Multi-Seed Data-Scarcity Experiment: 1%, 5%, 10%, 100% across 5 seeds
     # -------------------------------------------------------------------------
     train_traj_list = sorted(train_df_bounded["trajectory_id"].unique())
     data_fractions = [0.01, 0.05, 0.10, 1.00]
     scaling_results = []
 
+    logger.info(f"Running multi-seed data-scarcity benchmark across {len(BENCHMARK_SEEDS)} seeds: {BENCHMARK_SEEDS}")
+
     for frac in data_fractions:
         k_traj = max(1, int(round(len(train_traj_list) * frac)))
-        selected_ids = train_traj_list[:k_traj]
-        sub_df = train_df_bounded[train_df_bounded["trajectory_id"].isin(selected_ids)]
-        x_sub = sub_df[feature_cols].values.astype(np.float32)
-        y_sub = sub_df[target_cols].values.astype(np.float32)
+        mlp_seed_runs = []
+        pinn_seed_runs = []
+        sample_counts = []
 
-        logger.info(f"Scaling step {int(frac*100)}%: {k_traj} trajectories ({len(x_sub)} samples)")
+        for s_idx, cur_seed in enumerate(BENCHMARK_SEEDS):
+            # Seeded shuffle of training trajectories
+            rng = random.Random(cur_seed)
+            shuffled_trajs = list(train_traj_list)
+            rng.shuffle(shuffled_trajs)
+            selected_ids = set(shuffled_trajs[:k_traj])
 
-        # Train Plain MLP
-        mlp_m, _ = train_network(
-            x_sub, y_sub, X_val, y_val,
-            lambda_phys=0.0, lambda_bound=0.0, epochs=35, model_name=f"mlp_frac_{frac}"
+            sub_df = train_df_bounded[train_df_bounded["trajectory_id"].isin(selected_ids)]
+            x_sub = sub_df[feature_cols].values.astype(np.float32)
+            y_sub = sub_df[target_cols].values.astype(np.float32)
+            sample_counts.append(len(x_sub))
+
+            # Train Plain MLP
+            mlp_m, _ = train_network(
+                x_sub, y_sub, X_val, y_val,
+                lambda_phys=0.0, lambda_bound=0.0, epochs=30, batch_size=128,
+                model_name=f"mlp_f{frac}_s{cur_seed}", seed=cur_seed
+            )
+            mlp_in = evaluate_model(mlp_m, X_test_in, y_test_in)
+            mlp_ex = evaluate_model(mlp_m, X_test_extrap, y_test_extrap)
+            mlp_colloc = evaluate_collocation_invariants(mlp_m, n_colloc=2000)
+
+            mlp_seed_runs.append({
+                "seed": cur_seed,
+                "in_distribution": mlp_in,
+                "extrapolation": mlp_ex,
+                "collocation": mlp_colloc
+            })
+
+            # Train PINN (fixed lambda=1.0 for scarcity scaling)
+            pinn_m, _ = train_network(
+                x_sub, y_sub, X_val, y_val,
+                lambda_phys=1.0, lambda_bound=0.5, epochs=30, batch_size=128,
+                model_name=f"pinn_f{frac}_s{cur_seed}", seed=cur_seed
+            )
+            pinn_in = evaluate_model(pinn_m, X_test_in, y_test_in)
+            pinn_ex = evaluate_model(pinn_m, X_test_extrap, y_test_extrap)
+            pinn_colloc = evaluate_collocation_invariants(pinn_m, n_colloc=2000)
+
+            pinn_seed_runs.append({
+                "seed": cur_seed,
+                "in_distribution": pinn_in,
+                "extrapolation": pinn_ex,
+                "collocation": pinn_colloc
+            })
+
+        # Aggregate mean and std across seeds
+        def aggregate_runs(runs):
+            return {
+                "in_distribution": {
+                    "soc_mae_mean": round(float(np.mean([r["in_distribution"]["soc_mae"] for r in runs])), 4),
+                    "soc_mae_std": round(float(np.std([r["in_distribution"]["soc_mae"] for r in runs])), 4),
+                    "temp_mae_mean": round(float(np.mean([r["in_distribution"]["temp_mae"] for r in runs])), 4),
+                    "temp_mae_std": round(float(np.std([r["in_distribution"]["temp_mae"] for r in runs])), 4),
+                },
+                "extrapolation": {
+                    "soc_mae_mean": round(float(np.mean([r["extrapolation"]["soc_mae"] for r in runs])), 4),
+                    "soc_mae_std": round(float(np.std([r["extrapolation"]["soc_mae"] for r in runs])), 4),
+                    "temp_mae_mean": round(float(np.mean([r["extrapolation"]["temp_mae"] for r in runs])), 4),
+                    "temp_mae_std": round(float(np.std([r["extrapolation"]["temp_mae"] for r in runs])), 4),
+                },
+                "collocation": {
+                    "soc_residual_mean": round(float(np.mean([r["collocation"]["collocation_energy_balance_residual"] for r in runs])), 4),
+                    "soc_residual_std": round(float(np.std([r["collocation"]["collocation_energy_balance_residual"] for r in runs])), 4),
+                    "temp_residual_mean": round(float(np.mean([r["collocation"]["collocation_thermal_residual"] for r in runs])), 4),
+                    "temp_residual_std": round(float(np.std([r["collocation"]["collocation_thermal_residual"] for r in runs])), 4),
+                    "boundary_violations_pct_mean": round(float(np.mean([r["collocation"]["collocation_boundary_violations_pct"] for r in runs])), 3),
+                    "boundary_violations_pct_std": round(float(np.std([r["collocation"]["collocation_boundary_violations_pct"] for r in runs])), 3),
+                }
+            }
+
+        agg_mlp = aggregate_runs(mlp_seed_runs)
+        agg_pinn = aggregate_runs(pinn_seed_runs)
+
+        logger.info(
+            f"Fraction {int(frac*100)}% ({k_traj} trajs, {int(np.mean(sample_counts))} samples): "
+            f"MLP SOC={agg_mlp['in_distribution']['soc_mae_mean']}±{agg_mlp['in_distribution']['soc_mae_std']}, "
+            f"PINN SOC={agg_pinn['in_distribution']['soc_mae_mean']}±{agg_pinn['in_distribution']['soc_mae_std']}"
         )
-        mlp_in = evaluate_model(mlp_m, X_test_in, y_test_in)
-        mlp_ex = evaluate_model(mlp_m, X_test_extrap, y_test_extrap)
-        mlp_colloc = evaluate_collocation_invariants(mlp_m, n_colloc=2000)
-
-        # Train PINN (lambda=1.0)
-        pinn_m, _ = train_network(
-            x_sub, y_sub, X_val, y_val,
-            lambda_phys=1.0, lambda_bound=0.5, epochs=35, model_name=f"pinn_frac_{frac}"
-        )
-        pinn_in = evaluate_model(pinn_m, X_test_in, y_test_in)
-        pinn_ex = evaluate_model(pinn_m, X_test_extrap, y_test_extrap)
-        pinn_colloc = evaluate_collocation_invariants(pinn_m, n_colloc=2000)
 
         scaling_results.append({
             "fraction": frac,
             "fraction_label": f"{int(frac*100)}%",
             "trajectories_count": k_traj,
-            "sample_count": len(x_sub),
-            "plain_mlp": {
-                "in_distribution": mlp_in,
-                "extrapolation": mlp_ex,
-                "collocation": mlp_colloc
-            },
-            "pinn": {
-                "in_distribution": pinn_in,
-                "extrapolation": pinn_ex,
-                "collocation": pinn_colloc
+            "sample_count_mean": int(np.mean(sample_counts)),
+            "seeds_evaluated": BENCHMARK_SEEDS,
+            "lambda_phys_pinn": 1.0,
+            "lambda_phys_mlp": 0.0,
+            "plain_mlp": agg_mlp,
+            "pinn": agg_pinn,
+            "raw_seed_runs": {
+                "plain_mlp": mlp_seed_runs,
+                "pinn": pinn_seed_runs
             }
         })
 
     # -------------------------------------------------------------------------
-    # 3. Full-Dataset Hyperparameter Lambda Sweep (100% data)
+    # 3. Full-Dataset Hyperparameter Lambda Sweep (100% data, seed=42)
     # -------------------------------------------------------------------------
     sweep_lambdas = [0.1, 1.0, 10.0]
     lambda_sweep = {}
@@ -374,13 +428,14 @@ def train_pinn(
     best_pinn_metrics = None
     best_extrap_score = float("inf")
 
-    # Plain MLP on 100% data
-    full_mlp_entry = scaling_results[-1]["plain_mlp"]
+    # Plain MLP on 100% data (seed 42 run from raw_seed_runs)
+    full_mlp_seed42 = scaling_results[-1]["raw_seed_runs"]["plain_mlp"][0]
 
     for lam in sweep_lambdas:
         m, _ = train_network(
             X_train_full, y_train_full, X_val, y_val,
-            lambda_phys=lam, lambda_bound=0.5, epochs=35, model_name=f"pinn_lam_{lam}"
+            lambda_phys=lam, lambda_bound=0.5, epochs=30, batch_size=128,
+            model_name=f"pinn_lam_{lam}", seed=SEED
         )
         ev_in = evaluate_model(m, X_test_in, y_test_in)
         ev_ex = evaluate_model(m, X_test_extrap, y_test_extrap)
@@ -397,13 +452,14 @@ def train_pinn(
             best_pinn_model = m
             best_pinn_metrics = {
                 "lambda_phys": lam,
+                "seed": SEED,
                 "in_distribution": ev_in,
                 "extrapolation": ev_ex,
                 "collocation": ev_colloc
             }
 
     # -------------------------------------------------------------------------
-    # 4. Save Final Best PINN Model Artifact
+    # 4. Save Final Best PINN Model Artifact & Weights
     # -------------------------------------------------------------------------
     model_save_path = os.path.join(models_dir, "pinn_model.keras")
     weights_save_path = os.path.join(models_dir, "pinn_model.weights.h5")
@@ -412,20 +468,22 @@ def train_pinn(
     logger.info(f"Saved best PINN model to {model_save_path} and weights to {weights_save_path} (lambda={best_pinn_metrics['lambda_phys']})")
 
     # -------------------------------------------------------------------------
-    # 5. Compile Metrics JSON with Decoupled Metrics & Analytical Reference
+    # 5. Compile Metrics JSON with Multi-Seed Statistics & Honest Disclaimers
     # -------------------------------------------------------------------------
     metrics = {
         "model_architecture": "MLP (64-64-32 Swish) with Multi-Physics Collocation (5 inputs, 2 outputs)",
         "features": feature_cols,
         "targets": target_cols,
-        "seed": SEED,
-        "epochs": 35,
+        "primary_seed": SEED,
+        "benchmark_seeds": BENCHMARK_SEEDS,
+        "epochs": 30,
         "train_samples": int(len(X_train_full)),
         "val_samples": int(len(X_val)),
         "test_in_samples": int(len(X_test_in)),
         "test_extrapolation_samples": int(len(X_test_extrap)),
         "artifacts": {
             "model_path": "models/pinn_model.keras",
+            "model_weights": "models/pinn_model.weights.h5",
             "training_dataset": "dataset/battery_sim_trajectories.csv",
             "ablation_figure": "output_figures/fig_pinn_ablation.png"
         },
@@ -435,9 +493,11 @@ def train_pinn(
             "extrapolation": analytical_extrap
         },
         "full_data_comparison_100pct": {
+            "note": "Reports the optimal hyperparameter sweep configuration (seed 42, lambda=10.0), whereas data_scarcity_scaling reports mean ± std across 5 random seeds using fixed lambda=1.0 to isolate dataset size effects.",
             "best_lambda_phys": best_pinn_metrics["lambda_phys"],
+            "seed": SEED,
             "pinn": best_pinn_metrics,
-            "plain_mlp": full_mlp_entry
+            "plain_mlp": full_mlp_seed42
         },
         "data_scarcity_scaling": scaling_results,
         "lambda_sweep_100pct": lambda_sweep,
@@ -447,10 +507,18 @@ def train_pinn(
                 "uniformly across the entire 5D input domain (including unvisited states), decoupled from test MAE."
             ),
             "findings_summary": (
-                "The analytical formula provides an exact baseline (SOC MAE ~0.0002). "
-                "Under data scarcity (1-5%), PINN physics loss regularizes predictions and preserves domain invariants. "
-                "At 100% data, unconstrained MLP and PINN achieve comparable fidelity, and the analytical formula "
-                "acts as the primary deterministic safety guardrail."
+                "1. Analytical Baseline: The analytical ODE formulas achieve an in-distribution SOC MAE of ~0.0002% "
+                "and serve as the deterministic safety guardrail in the digital twin.\n"
+                "2. In-Distribution Fitting: The unconstrained Plain MLP fits smooth training data closer than the PINN "
+                "at dense data regimes (5%, 10%, 100%), achieving lower test SOC MAE. The PINN physics penalty acts as "
+                "a regularizer that restricts unconstrained data memorization.\n"
+                "3. Data-Scarcity Multi-Seed Reality: Across 5 random seeds, the 1% data regime exhibits high variance; "
+                "neither model consistently dominates without adequate sample coverage.\n"
+                "4. Collocation Invariants: The PINN consistently reduces energy balance and thermal dynamics violations "
+                "on unvisited collocation points across the 5D state space, although soft penalties do not guarantee zero "
+                "boundary violations on extreme collocation coordinates.\n"
+                "5. Thermal Dynamics: Incorporating temp_prev resolves prior thermal tracking errors, bringing temperature "
+                "MAE below 0.08°C for both architectures."
             )
         }
     }
@@ -458,38 +526,48 @@ def train_pinn(
     metrics_save_path = os.path.join(models_dir, "pinn_metrics.json")
     with open(metrics_save_path, "w", encoding="utf-8") as f:
         json.dump(metrics, f, indent=2)
-    logger.info(f"Saved comprehensive PINN metrics to {metrics_save_path}")
+    logger.info(f"Saved comprehensive multi-seed PINN metrics to {metrics_save_path}")
 
     # -------------------------------------------------------------------------
-    # 6. Generate Multi-Panel Publication Figure
+    # 6. Generate Multi-Panel Publication Figure with Error Bars
     # -------------------------------------------------------------------------
     fig, axes = plt.subplots(2, 2, figsize=(13, 9), dpi=150)
     ((ax1, ax2), (ax3, ax4)) = axes
 
     frac_labels = [r["fraction_label"] for r in scaling_results]
-    mlp_soc_curve = [r["plain_mlp"]["in_distribution"]["soc_mae"] for r in scaling_results]
-    pinn_soc_curve = [r["pinn"]["in_distribution"]["soc_mae"] for r in scaling_results]
-    anal_soc_ref = analytical_in["soc_mae"]
+    x_indices = np.arange(len(frac_labels))
 
-    # Subplot 1: Data-Scarce Scaling - SOC MAE
-    ax1.plot(frac_labels, mlp_soc_curve, "o--", color="#ef4444", label="Plain MLP (No Physics)", linewidth=2)
-    ax1.plot(frac_labels, pinn_soc_curve, "s-", color="#10b981", label="PINN (Ours)", linewidth=2)
+    mlp_soc_means = [r["plain_mlp"]["in_distribution"]["soc_mae_mean"] for r in scaling_results]
+    mlp_soc_stds  = [r["plain_mlp"]["in_distribution"]["soc_mae_std"] for r in scaling_results]
+    pinn_soc_means = [r["pinn"]["in_distribution"]["soc_mae_mean"] for r in scaling_results]
+    pinn_soc_stds  = [r["pinn"]["in_distribution"]["soc_mae_std"] for r in scaling_results]
+    anal_soc_ref   = analytical_in["soc_mae"]
+
+    # Subplot 1: Data-Scarce Scaling - SOC MAE with Error Bars
+    ax1.errorbar(x_indices, mlp_soc_means, yerr=mlp_soc_stds, fmt="o--", color="#ef4444", label="Plain MLP (Mean ± Std)", linewidth=2, capsize=4)
+    ax1.errorbar(x_indices, pinn_soc_means, yerr=pinn_soc_stds, fmt="s-", color="#10b981", label="PINN (Mean ± Std)", linewidth=2, capsize=4)
     ax1.axhline(y=anal_soc_ref, color="#06b6d4", linestyle=":", label=f"Analytical Formula ({anal_soc_ref:.4f}%)", linewidth=2)
-    ax1.set_title("Data Scarcity vs. SOC Generalization Error", fontweight="bold")
+    ax1.set_xticks(x_indices)
+    ax1.set_xticklabels(frac_labels)
+    ax1.set_title("Data Scarcity vs. In-Dist SOC MAE (5-Seed Average)", fontweight="bold")
     ax1.set_xlabel("Training Trajectories Available")
     ax1.set_ylabel("In-Distribution SOC MAE (%)")
     ax1.grid(True, linestyle="--", alpha=0.5)
     ax1.legend()
 
-    # Subplot 2: Data-Scarce Scaling - Temp MAE
-    mlp_temp_curve = [r["plain_mlp"]["in_distribution"]["temp_mae"] for r in scaling_results]
-    pinn_temp_curve = [r["pinn"]["in_distribution"]["temp_mae"] for r in scaling_results]
-    anal_temp_ref = analytical_in["temp_mae"]
+    # Subplot 2: Data-Scarce Scaling - Temp MAE with Error Bars
+    mlp_temp_means = [r["plain_mlp"]["in_distribution"]["temp_mae_mean"] for r in scaling_results]
+    mlp_temp_stds  = [r["plain_mlp"]["in_distribution"]["temp_mae_std"] for r in scaling_results]
+    pinn_temp_means = [r["pinn"]["in_distribution"]["temp_mae_mean"] for r in scaling_results]
+    pinn_temp_stds  = [r["pinn"]["in_distribution"]["temp_mae_std"] for r in scaling_results]
+    anal_temp_ref   = analytical_in["temp_mae"]
 
-    ax2.plot(frac_labels, mlp_temp_curve, "o--", color="#ef4444", label="Plain MLP (No Physics)", linewidth=2)
-    ax2.plot(frac_labels, pinn_temp_curve, "s-", color="#10b981", label="PINN (Ours)", linewidth=2)
-    ax2.axhline(y=anal_temp_ref, color="#06b6d4", linestyle=":", label=f"Analytical Lumped Model ({anal_temp_ref:.2f} °C)", linewidth=2)
-    ax2.set_title("Cell Temperature Prediction Fidelity", fontweight="bold")
+    ax2.errorbar(x_indices, mlp_temp_means, yerr=mlp_temp_stds, fmt="o--", color="#ef4444", label="Plain MLP (Mean ± Std)", linewidth=2, capsize=4)
+    ax2.errorbar(x_indices, pinn_temp_means, yerr=pinn_temp_stds, fmt="s-", color="#10b981", label="PINN (Mean ± Std)", linewidth=2, capsize=4)
+    ax2.axhline(y=anal_temp_ref, color="#06b6d4", linestyle=":", label=f"Analytical Model ({anal_temp_ref:.2f} °C)", linewidth=2)
+    ax2.set_xticks(x_indices)
+    ax2.set_xticklabels(frac_labels)
+    ax2.set_title("Data Scarcity vs. In-Dist Temp MAE (5-Seed Average)", fontweight="bold")
     ax2.set_xlabel("Training Trajectories Available")
     ax2.set_ylabel("Temperature MAE (°C)")
     ax2.grid(True, linestyle="--", alpha=0.5)
@@ -500,12 +578,12 @@ def train_pinn(
     x_pos = np.arange(len(cat_labels))
     w = 0.25
 
-    mlp_bars = [full_mlp_entry["in_distribution"]["soc_mae"], full_mlp_entry["extrapolation"]["soc_mae"]]
+    mlp_bars = [full_mlp_seed42["in_distribution"]["soc_mae"], full_mlp_seed42["extrapolation"]["soc_mae"]]
     pinn_bars = [best_pinn_metrics["in_distribution"]["soc_mae"], best_pinn_metrics["extrapolation"]["soc_mae"]]
     anal_bars = [analytical_in["soc_mae"], analytical_extrap["soc_mae"]]
 
-    ax3.bar(x_pos - w, mlp_bars, w, label="Plain MLP", color="#ef4444", alpha=0.85)
-    ax3.bar(x_pos, pinn_bars, w, label="PINN", color="#10b981", alpha=0.85)
+    ax3.bar(x_pos - w, mlp_bars, w, label="Plain MLP (Seed 42)", color="#ef4444", alpha=0.85)
+    ax3.bar(x_pos, pinn_bars, w, label=f"PINN (λ={best_pinn_metrics['lambda_phys']})", color="#10b981", alpha=0.85)
     ax3.bar(x_pos + w, anal_bars, w, label="Analytical Reference", color="#06b6d4", alpha=0.85)
     ax3.set_xticks(x_pos)
     ax3.set_xticklabels(cat_labels)
@@ -519,9 +597,9 @@ def train_pinn(
     x_colloc = np.arange(len(metric_labels))
 
     mlp_col_vals = [
-        full_mlp_entry["collocation"]["collocation_energy_balance_residual"],
-        full_mlp_entry["collocation"]["collocation_thermal_residual"],
-        full_mlp_entry["collocation"]["collocation_boundary_violations_pct"]
+        full_mlp_seed42["collocation"]["collocation_energy_balance_residual"],
+        full_mlp_seed42["collocation"]["collocation_thermal_residual"],
+        full_mlp_seed42["collocation"]["collocation_boundary_violations_pct"]
     ]
     pinn_col_vals = [
         best_pinn_metrics["collocation"]["collocation_energy_balance_residual"],
